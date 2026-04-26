@@ -1,10 +1,11 @@
 # CAF Price Intelligence Lab
 
-Este repositorio es un laboratorio del producto unico **CAF Price Intelligence**.
+Laboratorio **B** del producto unico **CAF Price Intelligence**.
 
 ## Identidad
 
-- Nombre actual: `caf-price-intel-lab-analytics`
+- Letra: **B**
+- Nombre actual: `caf-price-intel-lab-b-analytics`
 - Proyecto original: `procurement-analytics`
 - Rol: Prototipo mas trabajado y amplio; tiene mas piezas pero tambien mas errores.
 - Madurez: Alta en alcance, pendiente de estabilizacion
