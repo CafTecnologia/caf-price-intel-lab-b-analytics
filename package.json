@@ -1,0 +1,39 @@
+{
+  "name": "procurement-analytics-ai-first",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ai-first:smoke": "tsx packages/ai-first-core/src/demo/run-smoke.ts",
+    "ai-first:demo:upload": "tsx packages/ai-first-core/src/demo/create-demo-upload.ts",
+    "ai-first:persistence:smoke": "tsx packages/ai-first-core/src/demo/run-persistence-smoke.ts",
+    "ai-first:web:dev": "npm --prefix apps/ai-first-web run dev",
+    "ai-first:web:build": "npm --prefix apps/ai-first-web run build",
+    "ai-first:typecheck": "tsc -p tsconfig.json --noEmit",
+    "ai-first:test": "vitest run",
+    "ai-first:audit": "tsx packages/ai-first-core/src/audit/run-phase-audit.ts",
+    "ai-first:prisma:validate": "cmd /c \"if not defined PRISMA_DATABASE_URL set PRISMA_DATABASE_URL=postgresql://procurement:procurement@localhost:5432/procurement?schema=public && prisma.cmd validate --schema prisma/schema.prisma\"",
+    "ai-first:prisma:generate": "prisma generate --schema prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.7.0",
+    "better-sqlite3": "^11.10.0",
+    "dotenv": "^16.6.1",
+    "json2csv": "^6.0.0-alpha.2",
+    "mammoth": "^1.10.0",
+    "pdf-parse": "^1.1.1",
+    "xlsx": "^0.18.5",
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.24.6"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/json2csv": "^5.0.7",
+    "@types/node": "^24.6.0",
+    "@types/pdf-parse": "^1.1.5",
+    "prisma": "^6.7.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,122 @@
+<odoo>
+  <record id="view_procurement_process_tree" model="ir.ui.view">
+    <field name="name">procurement.process.tree</field>
+    <field name="model">procurement.process</field>
+    <field name="arch" type="xml">
+      <tree>
+        <field name="name"/>
+        <field name="external_reference"/>
+        <field name="contracting_entity"/>
+        <field name="state"/>
+        <field name="document_count"/>
+        <field name="item_count"/>
+        <field name="issue_count"/>
+      </tree>
+    </field>
+  </record>
+
+  <record id="view_procurement_process_kanban" model="ir.ui.view">
+    <field name="name">procurement.process.kanban</field>
+    <field name="model">procurement.process</field>
+    <field name="arch" type="xml">
+      <kanban>
+        <field name="name"/>
+        <field name="state"/>
+        <field name="contracting_entity"/>
+        <templates>
+          <t t-name="kanban-box">
+            <div class="oe_kanban_global_click">
+              <strong><field name="name"/></strong>
+              <div><field name="contracting_entity"/></div>
+              <div><field name="state"/></div>
+            </div>
+          </t>
+        </templates>
+      </kanban>
+    </field>
+  </record>
+
+  <record id="view_procurement_process_form" model="ir.ui.view">
+    <field name="name">procurement.process.form</field>
+    <field name="model">procurement.process</field>
+    <field name="arch" type="xml">
+      <form string="Procurement Process">
+        <header>
+          <button name="action_open_analysis_wizard" type="object" string="Run Analysis" class="btn-primary"/>
+          <field name="state" widget="statusbar"/>
+        </header>
+        <sheet>
+          <div class="oe_button_box" name="button_box">
+            <button name="action_view_documents" type="object" class="oe_stat_button" icon="fa-file">
+              <field name="document_count" widget="statinfo" string="Documents"/>
+            </button>
+            <button name="action_view_items" type="object" class="oe_stat_button" icon="fa-list">
+              <field name="item_count" widget="statinfo" string="Items"/>
+            </button>
+            <button name="action_view_issues" type="object" class="oe_stat_button" icon="fa-warning">
+              <field name="issue_count" widget="statinfo" string="Issues"/>
+            </button>
+          </div>
+          <group>
+            <group>
+              <field name="name"/>
+              <field name="external_reference"/>
+              <field name="contracting_entity"/>
+              <field name="source_url"/>
+            </group>
+            <group>
+              <field name="state"/>
+            </group>
+          </group>
+          <notebook>
+            <page string="Description">
+              <field name="description"/>
+            </page>
+            <page string="Documents">
+              <field name="document_ids">
+                <tree editable="bottom">
+                  <field name="name"/>
+                  <field name="attachment_id"/>
+                  <field name="file_type"/>
+                  <field name="document_kind"/>
+                  <field name="page_count"/>
+                </tree>
+              </field>
+            </page>
+            <page string="Items">
+              <field name="item_ids">
+                <tree>
+                  <field name="raw_description"/>
+                  <field name="raw_quantity"/>
+                  <field name="raw_unit"/>
+                  <field name="raw_unit_price"/>
+                  <field name="raw_total"/>
+                  <field name="unit_normalized"/>
+                </tree>
+              </field>
+            </page>
+            <page string="Issues">
+              <field name="issue_ids">
+                <tree>
+                  <field name="severity"/>
+                  <field name="title"/>
+                  <field name="message"/>
+                </tree>
+              </field>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_procurement_process" model="ir.actions.act_window">
+    <field name="name">Procurement Processes</field>
+    <field name="res_model">procurement.process</field>
+    <field name="view_mode">kanban,tree,form</field>
+  </record>
+
+  <menuitem id="menu_procurement_root" name="Procurement Analysis"/>
+  <menuitem id="menu_procurement_processes" name="Processes" parent="menu_procurement_root" action="action_procurement_process"/>
+</odoo>
+

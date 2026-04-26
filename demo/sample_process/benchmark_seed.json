@@ -1,0 +1,25 @@
+[
+  {
+    "description": "Guantes de nitrilo talla M caja x 100",
+    "price_cop": 28000,
+    "source_name": "Proveedor Salud SAS",
+    "source_url": "https://demo.example.com/guantes-nitrilo",
+    "country": "CO",
+    "presentation": "caja x 100",
+    "condition": "nuevo",
+    "comparability": "strong_equivalent",
+    "observations": "Precio histórico de referencia para demo"
+  },
+  {
+    "description": "Tapabocas quirúrgico caja x 50",
+    "price_cop": 14500,
+    "source_name": "Distribuciones Medicas",
+    "source_url": "https://demo.example.com/tapabocas",
+    "country": "CO",
+    "presentation": "caja x 50",
+    "condition": "nuevo",
+    "comparability": "strong_equivalent",
+    "observations": "Precio histórico de referencia para demo"
+  }
+]
+

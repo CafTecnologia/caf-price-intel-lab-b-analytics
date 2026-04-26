@@ -1,0 +1,17 @@
+<odoo>
+  <record id="view_procurement_analysis_wizard_form" model="ir.ui.view">
+    <field name="name">procurement.analysis.wizard.form</field>
+    <field name="model">procurement.analysis.wizard</field>
+    <field name="arch" type="xml">
+      <form string="Run Analysis">
+        <group>
+          <field name="process_id" readonly="1"/>
+        </group>
+        <footer>
+          <button name="action_confirm" type="object" string="Analyze" class="btn-primary"/>
+          <button string="Cancel" special="cancel"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+</odoo>

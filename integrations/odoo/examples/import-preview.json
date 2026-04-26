@@ -1,0 +1,46 @@
+{
+  "header": {
+    "external_document_id": "demo-ai-first-document",
+    "source_file_name": "estudio_mercado_demo.pdf",
+    "source_file_type": "pdf",
+    "processing_status": "completed",
+    "final_confidence_score": 0.855,
+    "total_items": 4,
+    "global_warnings": [
+      "Mock fallback was used because no provider key was available."
+    ],
+    "provider_summary": {
+      "detectOfficialBlock": "openai:gpt-4.1-mini",
+      "extractItemsBatch": "openai:gpt-4.1-mini",
+      "validateBatch": "openai:gpt-4.1-mini",
+      "validateGlobal": "openai:gpt-4.1-mini"
+    }
+  },
+  "lines": [
+    {
+      "external_item_uid": "demo-ai-first-document:batch-1:1",
+      "numero_item": "1",
+      "nombre_o_descripcion": "Portatil empresarial 16GB RAM SSD 512GB",
+      "ficha_tecnica": null,
+      "cantidad": 10,
+      "unidad_medida": "UND",
+      "precio_referencia_unit": 3500000,
+      "precio_referencia_total": 35000000,
+      "moneda": "COP",
+      "raw_text_evidence": "1 | Portatil empresarial 16GB RAM SSD 512GB | 10 | UND | 3500000 | 35000000 | COP",
+      "source_location_label": "page 2 | table tabla-1",
+      "extraction_mode": "extracted_directly",
+      "confidence": 0.9,
+      "warnings": []
+    }
+  ],
+  "attachments": [],
+  "audit_summary": {
+    "detection_warnings": [
+      "Mock fallback was used because no provider key was available."
+    ],
+    "validation_warnings": [
+      "Mock global validation was used because no provider key was available."
+    ]
+  }
+}

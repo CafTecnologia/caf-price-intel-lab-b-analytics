@@ -1,0 +1,8 @@
+"id","name","model_id:id","group_id:id","perm_read","perm_write","perm_create","perm_unlink"
+"access_procurement_process_analyst","procurement.process analyst","model_procurement_process","odoo_procurement_analysis.group_procurement_analyst",1,1,1,0
+"access_procurement_document_analyst","procurement.document analyst","model_procurement_process_document","odoo_procurement_analysis.group_procurement_analyst",1,1,1,0
+"access_procurement_item_reviewer","procurement.item reviewer","model_procurement_process_item","odoo_procurement_analysis.group_procurement_reviewer",1,1,1,0
+"access_procurement_issue_reviewer","procurement.issue reviewer","model_procurement_process_issue","odoo_procurement_analysis.group_procurement_reviewer",1,1,1,0
+"access_procurement_manager","procurement.process manager","model_procurement_process","odoo_procurement_analysis.group_procurement_manager",1,1,1,1
+"access_procurement_wizard","procurement.analysis.wizard","model_procurement_analysis_wizard","base.group_user",1,1,1,1
+

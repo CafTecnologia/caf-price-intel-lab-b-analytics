@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: procurement
+      POSTGRES_USER: procurement
+      POSTGRES_PASSWORD: procurement
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.api
+    env_file:
+      - .env.example
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./:/workspace
+
+  worker:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.api
+    command: celery -A procurement_api.worker.celery_app worker --loglevel=INFO
+    env_file:
+      - .env.example
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./:/workspace
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.web
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+    volumes:
+      - ./:/workspace
+
+volumes:
+  postgres_data:
+

@@ -1,0 +1,15 @@
+<odoo>
+  <record id="group_procurement_analyst" model="res.groups">
+    <field name="name">Procurement Analyst</field>
+    <field name="category_id" ref="base.module_category_sales_management"/>
+  </record>
+  <record id="group_procurement_reviewer" model="res.groups">
+    <field name="name">Procurement Reviewer</field>
+    <field name="category_id" ref="base.module_category_sales_management"/>
+  </record>
+  <record id="group_procurement_manager" model="res.groups">
+    <field name="name">Procurement Manager</field>
+    <field name="category_id" ref="base.module_category_sales_management"/>
+  </record>
+</odoo>
+

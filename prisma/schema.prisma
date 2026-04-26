@@ -1,0 +1,338 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("PRISMA_DATABASE_URL")
+}
+
+enum FileType {
+  pdf
+  xlsx
+  xls
+  docx
+  doc
+}
+
+enum SourceUnitType {
+  page_block
+  table_block
+  table_row_range
+  sheet_range
+  paragraph_span
+  mixed_span
+}
+
+enum ProcessingStatus {
+  uploaded
+  segmenting
+  detecting
+  batching
+  extracting
+  validating
+  consolidating
+  completed
+  completed_with_warnings
+  manual_review
+  failed
+}
+
+enum BatchExecutionStatus {
+  pending
+  running
+  completed
+  completed_with_warnings
+  retry
+  manual_review
+  failed
+}
+
+enum AiProvider {
+  openai
+  gemini
+  anthropic
+  deepseek
+}
+
+enum AiTaskKind {
+  detectOfficialBlock
+  extractItemsBatch
+  validateBatch
+  validateGlobal
+}
+
+enum ExtractionMode {
+  extracted_directly
+  reconstructed_conservatively
+  not_found
+}
+
+enum ValidationRecommendation {
+  accept
+  accept_with_warning
+  retry
+  manual_review
+}
+
+enum AuditLevel {
+  debug
+  info
+  warning
+  error
+}
+
+model UploadedFile {
+  id             String     @id @default(cuid())
+  fileName       String
+  mimeType       String
+  fileType       FileType
+  checksumSha256 String     @unique
+  storageKey     String
+  sizeBytes      Int
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  documents      Document[]
+}
+
+model Document {
+  id                   String                       @id
+  uploadedFileId       String
+  fileName             String
+  fileType             FileType
+  processingStatus     ProcessingStatus
+  processingOptions    Json?
+  detectionSummary     Json?
+  providerConfigUsed   Json?
+  globalValidationJson Json?
+  totalCandidateItems  Int                          @default(0)
+  totalExtractedItems  Int                          @default(0)
+  totalValidatedItems  Int                          @default(0)
+  finalConfidenceScore Decimal?                     @db.Decimal(5, 4)
+  globalWarnings       Json?
+  consolidatedJson     Json?
+  createdAt            DateTime                     @default(now())
+  updatedAt            DateTime                     @updatedAt
+  uploadedFile         UploadedFile                 @relation(fields: [uploadedFileId], references: [id], onDelete: Cascade)
+  sourceSegments       SourceSegment[]
+  batches              Batch[]
+  items                NormalizedItem[]
+  providerTaskConfigs  ProviderTaskConfigSnapshot[]
+  promptExecutions     PromptExecution[]
+  globalValidations    DocumentValidation[]
+  auditLogs            AuditLog[]
+}
+
+model SourceSegment {
+  id             String               @id
+  documentId     String
+  segmentIndex   Int
+  unitType       SourceUnitType
+  locatorJson    Json
+  rawText        String
+  normalizedText String?
+  checksumSha256 String
+  metadataJson   Json?
+  createdAt      DateTime             @default(now())
+  document       Document             @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  batches        BatchSourceSegment[]
+
+  @@unique([documentId, segmentIndex])
+}
+
+model Batch {
+  id                 String               @id
+  documentId         String
+  batchIndex         Int
+  sourceRangeJson    Json
+  provider           AiProvider
+  model              String
+  promptVersion      String
+  extractionStatus   BatchExecutionStatus
+  validationStatus   BatchExecutionStatus
+  outputJson         Json?
+  validationJson     Json?
+  confidenceScore    Decimal?             @db.Decimal(5, 4)
+  warnings           Json?
+  retryCount         Int                  @default(0)
+  candidateItemCount Int?
+  extractedItemCount Int?
+  validatedItemCount Int?
+  startedAt          DateTime?
+  finishedAt         DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  document           Document             @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  items              NormalizedItem[]
+  validation         BatchValidation?
+  promptExecutions   PromptExecution[]
+  batchAttempts      BatchAttemptAudit[]
+  auditLogs          AuditLog[]
+  sourceSegments     BatchSourceSegment[]
+
+  @@unique([documentId, batchIndex])
+}
+
+model BatchSourceSegment {
+  batchId         String
+  sourceSegmentId String
+  createdAt       DateTime      @default(now())
+  batch           Batch         @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  sourceSegment   SourceSegment @relation(fields: [sourceSegmentId], references: [id], onDelete: Cascade)
+
+  @@id([batchId, sourceSegmentId])
+}
+
+model NormalizedItem {
+  id                    String         @id @default(cuid())
+  documentId            String
+  batchId               String?
+  itemUid               String
+  numeroItem            String?
+  nombreODescripcion    String?
+  fichaTecnica          String?
+  cantidad              Decimal?       @db.Decimal(18, 4)
+  unidadMedida          String?
+  precioReferenciaUnit  Decimal?       @db.Decimal(18, 4)
+  precioReferenciaTotal Decimal?       @db.Decimal(18, 4)
+  moneda                String?
+  rawTextEvidence       String?
+  sourceLocationJson    Json
+  extractionMode        ExtractionMode
+  warnings              Json?
+  confidence            Decimal?       @db.Decimal(5, 4)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  document              Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  batch                 Batch?         @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@unique([documentId, itemUid])
+}
+
+model BatchValidation {
+  id                         String                   @id @default(cuid())
+  batchId                    String                   @unique
+  validationScore            Decimal?                 @db.Decimal(5, 4)
+  completenessScore          Decimal?                 @db.Decimal(5, 4)
+  hallucinationRiskScore     Decimal?                 @db.Decimal(5, 4)
+  structuralConsistencyScore Decimal?                 @db.Decimal(5, 4)
+  warnings                   Json?
+  suspectedMissingItems      Json?
+  suspectedDuplicates        Json?
+  recommendation             ValidationRecommendation
+  rationale                  String
+  rawResponseJson            Json?
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
+  batch                      Batch                    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+}
+
+model DocumentValidation {
+  id                         String                   @id @default(cuid())
+  documentId                 String
+  validationScore            Decimal?                 @db.Decimal(5, 4)
+  completenessScore          Decimal?                 @db.Decimal(5, 4)
+  hallucinationRiskScore     Decimal?                 @db.Decimal(5, 4)
+  structuralConsistencyScore Decimal?                 @db.Decimal(5, 4)
+  warnings                   Json?
+  suspectedMissingItems      Json?
+  suspectedDuplicates        Json?
+  recommendation             ValidationRecommendation
+  rationale                  String
+  documentLevelNotes         Json?
+  rawResponseJson            Json?
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
+  document                   Document                 @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model ProviderTaskConfigSnapshot {
+  id              String      @id @default(cuid())
+  documentId      String
+  taskKind        AiTaskKind
+  provider        AiProvider
+  model           String
+  temperature     Decimal?    @db.Decimal(3, 2)
+  timeoutMs       Int
+  maxRetries      Int
+  maxInputTokens  Int?
+  maxOutputTokens Int?
+  topP            Decimal?    @db.Decimal(3, 2)
+  seed            Int?
+  promptVersion   String
+  extraConfigJson Json?
+  createdAt       DateTime    @default(now())
+  document        Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, taskKind])
+}
+
+model PromptTemplate {
+  id                 String            @id @default(cuid())
+  promptKey          String
+  version            String
+  description        String?
+  systemInstructions String
+  userTemplate       String
+  responseSchemaName String
+  checksumSha256     String
+  isActive           Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  executions         PromptExecution[]
+
+  @@unique([promptKey, version])
+}
+
+model PromptExecution {
+  id                 String         @id @default(cuid())
+  documentId         String?
+  batchId            String?
+  promptTemplateId   String
+  taskKind           AiTaskKind
+  attemptNumber      Int?
+  provider           AiProvider
+  model              String
+  status             String
+  requestContextJson Json?
+  responseJson       Json?
+  usageJson          Json?
+  parsedJson         Json?
+  startedAt          DateTime
+  finishedAt         DateTime?
+  createdAt          DateTime       @default(now())
+  document           Document?      @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  batch              Batch?         @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  promptTemplate     PromptTemplate @relation(fields: [promptTemplateId], references: [id], onDelete: Cascade)
+}
+
+model BatchAttemptAudit {
+  id                       String                   @id @default(cuid())
+  batchId                  String
+  attemptNumber            Int
+  extractedItemCount       Int
+  validationRecommendation ValidationRecommendation?
+  warnings                 Json?
+  extractionUsageJson      Json?
+  validationUsageJson      Json?
+  startedAt                DateTime
+  finishedAt               DateTime
+  createdAt                DateTime                 @default(now())
+  batch                    Batch                    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, attemptNumber])
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  documentId  String?
+  batchId     String?
+  level       AuditLevel
+  stage       String?
+  code        String?
+  message     String
+  contextJson Json?
+  createdAt   DateTime    @default(now())
+  document    Document?   @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  batch       Batch?      @relation(fields: [batchId], references: [id], onDelete: SetNull)
+}

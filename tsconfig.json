@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowJs": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "packages/ai-first-contracts/src/**/*.ts",
+    "packages/ai-first-contracts/src/**/*.d.ts",
+    "packages/ai-first-prompts/src/**/*.ts",
+    "packages/ai-first-prompts/src/**/*.d.ts",
+    "packages/ai-first-core/src/**/*.ts",
+    "packages/ai-first-core/src/**/*.d.ts",
+    "packages/ai-first-core/test/**/*.ts",
+    "integrations/odoo/src/**/*.ts"
+  ]
+}

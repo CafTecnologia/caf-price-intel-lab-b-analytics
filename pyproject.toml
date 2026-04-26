@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "procurement-analytics-monorepo"
+version = "0.1.0"
+description = "Auditable procurement analytics platform for Colombian public contracting."
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+  { name = "Codex" }
+]
+dependencies = [
+  "alembic>=1.14.0",
+  "celery>=5.4.0",
+  "fastapi>=0.115.0",
+  "httpx>=0.28.0",
+  "openpyxl>=3.1.5",
+  "pdfplumber>=0.11.0",
+  "pillow>=11.0.0",
+  "pydantic>=2.9.0",
+  "pydantic-settings>=2.5.0",
+  "pypdf>=5.0.0",
+  "python-docx>=1.1.2",
+  "python-multipart>=0.0.12",
+  "redis>=5.1.0",
+  "rapidfuzz>=3.10.0",
+  "sqlalchemy>=2.0.36",
+  "structlog>=24.4.0",
+  "uvicorn>=0.32.0",
+]
+
+[project.optional-dependencies]
+ocr = [
+  "camelot-py[base]>=0.11.0",
+  "ocrmypdf>=16.10.0",
+  "paddleocr>=2.8.1",
+  "opencv-python-headless>=4.10.0.84",
+  "pytesseract>=0.3.13",
+]
+benchmark = [
+  "beautifulsoup4>=4.12.3",
+  "selectolax>=0.3.21",
+]
+postgres = [
+  "psycopg[binary]>=3.2.3",
+]
+dev = [
+  "faker>=37.1.0",
+  "pytest>=8.3.3",
+  "pytest-asyncio>=0.24.0",
+  "pytest-cov>=6.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["packages/procurement_core/src", "apps/api/src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [
+  "packages/procurement_core/src",
+  "apps/api/src",
+]
+
+[tool.coverage.run]
+source = ["procurement_core", "procurement_api"]
