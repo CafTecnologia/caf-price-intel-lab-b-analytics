@@ -30,7 +30,18 @@ function buildAvailableModelOptions(options: ProviderModelOption[], currentModel
     : [{ value: currentModel, label: `${currentModel} (saved)` }, ...options];
 }
 
-export function ProviderSettingsPanel(props: { initialSettings: ProviderSettingsSummary; surface?: "panel" | "plain" }) {
+function formatLastTestAt(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat("es-CO", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+export function ProviderSettingsPanel(props: { compact?: boolean; initialSettings: ProviderSettingsSummary; surface?: "panel" | "plain" }) {
   const router = useRouter();
   const [settings, setSettings] = useState(props.initialSettings);
   const [selectedProvider, setSelectedProvider] = useState<AiProvider>(props.initialSettings.activeProvider);
@@ -48,6 +59,15 @@ export function ProviderSettingsPanel(props: { initialSettings: ProviderSettings
   const [isRefreshingModels, setIsRefreshingModels] = useState(false);
 
   const selectedConnection = settings.connections[selectedProvider];
+  const selectedLastTestMatchesModel = selectedConnection.lastTestModel === selectedConnection.model;
+  const activeStatus =
+    selectedConnection.lastTestStatus === "success" && selectedLastTestMatchesModel
+      ? `Conexion confirmada con ${PROVIDER_LABELS[selectedProvider]}:${selectedConnection.model}${
+          formatLastTestAt(selectedConnection.lastTestAt) ? ` el ${formatLastTestAt(selectedConnection.lastTestAt)}` : ""
+        }.`
+      : selectedConnection.lastTestStatus === "error" && selectedLastTestMatchesModel
+        ? selectedConnection.lastTestMessage ?? "La ultima prueba de conexion fallo."
+        : selectedConnection.lastTestMessage ?? "Configuracion guardada. Falta probar la conexion.";
   const modelOptions = useMemo(
     () => buildAvailableModelOptions(
       availableModels[selectedProvider] ?? buildModelOptions(selectedProvider, selectedConnection.model),
@@ -194,19 +214,13 @@ export function ProviderSettingsPanel(props: { initialSettings: ProviderSettings
   }
 
   return (
-    <section id="api-connections" className={props.surface === "plain" ? "provider-settings-plain" : "panel"}>
+    <section
+      id="api-connections"
+      className={`${props.surface === "plain" ? "provider-settings-plain" : "panel"} ${props.compact ? "provider-settings-compact" : ""}`}
+    >
       <div className="panel-header">
         <div>
-          <div className="eyebrow">Motor principal</div>
           <h2>Configuración de IA</h2>
-          <p className="muted">
-            Elige proveedor, pega la API key, selecciona el modelo y prueba la conexión. La configuración queda guardada
-            localmente en este PC.
-          </p>
-          <p className="muted small">
-            El proveedor y modelo marcados como principales se usan por defecto en todas las etapas del pipeline cuando
-            cargas un archivo nuevo.
-          </p>
         </div>
       </div>
 
@@ -234,13 +248,7 @@ export function ProviderSettingsPanel(props: { initialSettings: ProviderSettings
         </label>
       </div>
 
-      <p className="muted small">
-        {selectedProvider === "gemini"
-          ? isRefreshingModels
-            ? "Consultando catalogo live de Gemini..."
-            : `${modelOptions.length} modelos disponibles cargados para Gemini desde models.list.`
-          : "Para este proveedor se muestran modelos preconfigurados en la app."}
-      </p>
+      {selectedProvider === "gemini" && isRefreshingModels ? <p className="muted small">Actualizando modelos...</p> : null}
 
       <label className="field">
         <span>API Key</span>
@@ -252,10 +260,20 @@ export function ProviderSettingsPanel(props: { initialSettings: ProviderSettings
         />
       </label>
 
-      <p className="muted small">
-        {selectedConnection.apiKeyStored
-          ? `API key guardada para ${PROVIDER_LABELS[selectedProvider]}: ${selectedConnection.apiKeyPreview}`
-          : `Todavia no hay una API key guardada para ${PROVIDER_LABELS[selectedProvider]}.`}
+      {selectedConnection.apiKeyStored ? (
+        <p className="muted small">Key guardada: {selectedConnection.apiKeyPreview}</p>
+      ) : null}
+
+      <p
+        className={
+          selectedConnection.lastTestStatus === "error" && selectedLastTestMatchesModel
+            ? "error-text"
+            : selectedConnection.lastTestStatus === "success" && selectedLastTestMatchesModel
+              ? "success-text"
+              : "muted small"
+        }
+      >
+        {activeStatus}
       </p>
 
       <div className="actions-row">
@@ -271,40 +289,6 @@ export function ProviderSettingsPanel(props: { initialSettings: ProviderSettings
         <p className={feedback.tone === "success" ? "success-text" : "error-text"}>{feedback.message}</p>
       ) : null}
 
-      <div className="provider-summary-grid">
-        {(Object.keys(settings.connections) as AiProvider[]).map((provider) => {
-          const connection = settings.connections[provider];
-          return (
-            <article key={provider} className={connection.isActive ? "provider-card provider-card-active" : "provider-card"}>
-              <div className="panel-header compact">
-                <strong>{PROVIDER_LABELS[provider]}</strong>
-                {connection.isActive ? <span className="status-pill">Default</span> : null}
-              </div>
-              <div className="stack tight">
-                <div className="summary-row">
-                  <span className="muted small">Modelo</span>
-                  <span className="small">{connection.model}</span>
-                </div>
-                <div className="summary-row">
-                  <span className="muted small">API key</span>
-                  <span className="small">{connection.apiKeyStored ? "Guardada" : "Pendiente"}</span>
-                </div>
-                <div className="summary-row">
-                  <span className="muted small">Ultimo test</span>
-                  <span className="small">
-                    {connection.lastTestStatus === "idle"
-                      ? "Sin probar"
-                      : connection.lastTestStatus === "success"
-                        ? "OK"
-                        : "Error"}
-                  </span>
-                </div>
-                {connection.lastTestMessage ? <div className="muted small">{connection.lastTestMessage}</div> : null}
-              </div>
-            </article>
-          );
-        })}
-      </div>
     </section>
   );
 }

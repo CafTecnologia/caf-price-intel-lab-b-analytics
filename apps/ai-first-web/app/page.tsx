@@ -1,87 +1,100 @@
-import { ProviderSettingsPanel } from "../components/provider-settings-panel";
 import { MarketAnalysisUploadForm } from "../components/market-analysis-upload-form";
 import { RecentMarketAnalyses } from "../components/recent-market-analyses";
-import { getHomePageProviderSettings, getHomePageUploadDefaults } from "../lib/server-data";
+import { fetchOdooProjectOptionById } from "../lib/odoo-projects";
+import { getHomePageUploadDefaults } from "../lib/server-data";
 
 export const dynamic = "force-dynamic";
 
-export default async function HomePage(props: { searchParams: Promise<{ settings?: string }> }) {
-  const { settings } = await props.searchParams;
-  const providerSettings = getHomePageProviderSettings();
+export default async function HomePage(props: {
+  searchParams: Promise<{ settings?: string; odoo_project_id?: string; odoo_project_name?: string; view?: string }>;
+}) {
+  const { odoo_project_id, odoo_project_name, view } = await props.searchParams;
   const uploadDefaults = getHomePageUploadDefaults();
-  const activeConnection = providerSettings.connections[providerSettings.activeProvider];
-  const settingsOpen = settings === "open";
+  const isProjectIntake = Boolean(odoo_project_id);
+  const resolvedOdooProject = isProjectIntake && !odoo_project_name && odoo_project_id
+    ? await fetchOdooProjectOptionById(odoo_project_id).catch(() => null)
+    : null;
+  const resolvedOdooProjectName = odoo_project_name || resolvedOdooProject?.name || "";
+  const projectLabel = resolvedOdooProjectName || (odoo_project_id ? `Proyecto Odoo ${odoo_project_id}` : "");
+  const projectQuery = odoo_project_id ? `odoo_project_id=${encodeURIComponent(odoo_project_id)}` : "";
 
-  return (
-    <div className="stack page-grid">
-      <section className="hero panel hero-grid">
-        <div className="hero-copy">
-          <div className="eyebrow">Análisis de mercado AI-first</div>
-          <h1>Sube un archivo y conviértelo en una matriz comercial lista para decidir cuánto ofertar.</h1>
-          <p className="muted">
-            Aquí el flujo queda claro: documento completo, prompt maestro, matriz única, simulador financiero y oferta económica
-            final sin salirte del precio techo.
-          </p>
+  if (isProjectIntake && view === "analyses") {
+    return (
+      <div className="stack project-intake-page">
+        <section className="panel project-intake-hero">
+          <div className="eyebrow">analisis Financiero - B</div>
+          <h1>Analisis del proyecto.</h1>
+          <div className="project-lock-card">
+            <span className="project-lock-label">Proyecto</span>
+            <strong>{projectLabel}</strong>
+          </div>
           <div className="actions-row">
-            <a href="#workspace-start" className="primary-button link-button">
-              Empezar ahora
-            </a>
-            <a href="#recent-runs" className="secondary-button link-button">
-              Ver procesos recientes
+            <a className="primary-button link-button" href={`/?${projectQuery}`}>
+              Nuevo analisis
             </a>
           </div>
-        </div>
+        </section>
 
-        <div className="hero-steps">
-          <article className="hero-step-card">
-            <span className="hero-step-index">1</span>
-            <div>
-              <strong>Configura tu IA</strong>
-              <p className="muted small">Proveedor, API key y modelo principal para todas las corridas nuevas.</p>
-            </div>
-          </article>
-          <article className="hero-step-card">
-            <span className="hero-step-index">2</span>
-            <div>
-              <strong>Genera la matriz</strong>
-              <p className="muted small">Una sola tabla normalizada, auditable y exportable.</p>
-            </div>
-          </article>
-          <article className="hero-step-card">
-            <span className="hero-step-index">3</span>
-            <div>
-              <strong>Decide la oferta</strong>
-              <p className="muted small">Ajustes por lote, IVA discriminado, topes y rescates rápidos.</p>
-            </div>
-          </article>
-        </div>
-      </section>
+        <RecentMarketAnalyses
+          odooProjectId={odoo_project_id}
+          title="Analisis realizados"
+          emptyText="Este proyecto aun no tiene analisis guardados."
+          limit={12}
+        />
 
-      <div id="workspace-start" className="grid layout-main">
-        <div className="stack">
-          <details id="ai-settings-drawer" className="settings-drawer" open={settingsOpen}>
-            <summary className="settings-drawer-summary">
-              <div>
-                <div className="eyebrow">Motor activo</div>
-                <strong>
-                  {uploadDefaults.label} · {activeConnection.model}
-                </strong>
-                <div className="muted small">Abre este panel solo cuando quieras cambiar proveedor, modelo o API key.</div>
-              </div>
-              <span className="secondary-button link-button">Configuración IA</span>
-            </summary>
-            <div className="settings-drawer-body">
-              <ProviderSettingsPanel initialSettings={providerSettings} surface="plain" />
-            </div>
-          </details>
+        <footer className="engine-footnote">
+          Motor: {uploadDefaults.label} · {uploadDefaults.model}
+        </footer>
+      </div>
+    );
+  }
+
+  if (isProjectIntake) {
+    return (
+      <div className="stack project-intake-page">
+        <section className="panel project-intake-hero">
+          <div className="eyebrow">analisis Financiero - B</div>
+          <h1>Carga el archivo del proyecto.</h1>
+          <div className="project-lock-card">
+            <span className="project-lock-label">Proyecto</span>
+            <strong>{projectLabel}</strong>
+          </div>
+        </section>
+
+        <div id="workspace-start" className="project-intake-workspace">
           <MarketAnalysisUploadForm
             defaultProvider={uploadDefaults.provider}
             defaultModel={uploadDefaults.model}
             defaultProviderLabel={uploadDefaults.label}
+            odooProjectId={odoo_project_id}
+            odooProjectName={resolvedOdooProjectName}
+            focusedProjectMode
+          />
+        </div>
+        <footer className="engine-footnote">
+          Motor: {uploadDefaults.label} · {uploadDefaults.model}
+        </footer>
+      </div>
+    );
+  }
+
+  return (
+    <div className="stack page-grid compact-home">
+      <div id="workspace-start" className="grid layout-main">
+        <div className="stack">
+          <MarketAnalysisUploadForm
+            defaultProvider={uploadDefaults.provider}
+            defaultModel={uploadDefaults.model}
+            defaultProviderLabel={uploadDefaults.label}
+            odooProjectId={odoo_project_id}
+            odooProjectName={resolvedOdooProjectName}
           />
         </div>
         <RecentMarketAnalyses />
       </div>
+      <footer className="engine-footnote">
+        Motor: {uploadDefaults.label} · {uploadDefaults.model}
+      </footer>
     </div>
   );
 }

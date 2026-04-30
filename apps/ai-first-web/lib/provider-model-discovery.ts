@@ -41,6 +41,18 @@ function toGeminiModelOption(model: {
   };
 }
 
+function geminiModelPriority(value: string): number {
+  const order = [
+    "gemini-3.1-pro-preview",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemini-3-flash-preview",
+  ];
+  const index = order.indexOf(value);
+  return index === -1 ? 100 : index;
+}
+
 export async function discoverProviderModels(provider: AiProvider): Promise<{
   provider: AiProvider;
   models: ProviderModelOption[];
@@ -104,7 +116,7 @@ export async function discoverProviderModels(provider: AiProvider): Promise<{
       )
       .map(toGeminiModelOption)
       .filter((model): model is ProviderModelOption => Boolean(model))
-      .sort((left, right) => left.value.localeCompare(right.value));
+      .sort((left, right) => geminiModelPriority(left.value) - geminiModelPriority(right.value) || left.value.localeCompare(right.value));
 
     return {
       provider,

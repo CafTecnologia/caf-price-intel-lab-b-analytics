@@ -1,0 +1,21 @@
+node_modules/
+apps/*/node_modules/
+apps/*/.next/
+apps/*/playwright-report/
+apps/*/test-results/
+apps/*/tsconfig.tsbuildinfo
+
+data/
+backups/
+
+.env
+.env.*
+!.env.example
+
+*.log
+*.tmp
+*.bak-*
+tmp_*
+
+# Generated test reports
+apps/*/tests/reports/

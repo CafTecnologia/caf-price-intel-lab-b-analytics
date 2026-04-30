@@ -1,0 +1,42 @@
+{
+  "case_id": "generic_real_document",
+  "document_name": "real_document",
+  "description": "Expected generico para smoke tests con documentos reales. No valida exactitud fina; valida que el pipeline no se rompa, entregue filas y campos criticos.",
+  "metadata": {
+    "manual_reviewed": false,
+    "expected_confidence": "low",
+    "source_of_truth": "unknown",
+    "human_review_required": true,
+    "notes": "Expected generico para humo. No usar como golden ni como evidencia de exactitud documental."
+  },
+  "expected": {
+    "json_valid": true,
+    "item_count": {
+      "min": 1
+    },
+    "required_fields": [
+      "item",
+      "description",
+      "technical_description",
+      "quantity",
+      "fit_analysis",
+      "source_1",
+      "reference_unit",
+      "notes"
+    ],
+    "minimum_field_coverage": {
+      "quantity": 0.5,
+      "reference_unit": 0.5,
+      "technical_description": 0.5
+    },
+    "expected_items": [],
+    "warnings": {
+      "allow": true,
+      "max": 15
+    },
+    "pipeline": {
+      "required": true,
+      "allow_stage_failures": false
+    }
+  }
+}

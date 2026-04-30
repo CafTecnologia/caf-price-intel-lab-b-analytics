@@ -1,10 +1,18 @@
 import Link from "next/link";
 
+import type { MarketAnalysisRunStatus } from "@web/lib/market-analysis-store";
+
+function statusClassName(status: MarketAnalysisRunStatus): string {
+  if (status === "completed") return "status-completed";
+  if (status === "failed") return "status-failed";
+  return "status-completed_with_warnings";
+}
+
 export function MarketAnalysisTabs(props: {
   runId: string;
   projectCode: string;
   fileName: string;
-  status: "completed" | "failed";
+  status: MarketAnalysisRunStatus;
   current: "matrix" | "financial" | "offer";
 }) {
   const links = [
@@ -19,7 +27,7 @@ export function MarketAnalysisTabs(props: {
         <div className="eyebrow">Proyecto {props.projectCode}</div>
         <div className="workspace-project-title-row">
           <strong className="workspace-project-title">{props.fileName}</strong>
-          <span className={`status-pill ${props.status === "completed" ? "status-completed" : "status-failed"}`}>
+          <span className={`status-pill ${statusClassName(props.status)}`}>
             {props.status}
           </span>
         </div>

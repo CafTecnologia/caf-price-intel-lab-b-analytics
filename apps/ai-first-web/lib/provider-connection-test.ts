@@ -1,6 +1,6 @@
 import type { AiProvider } from "@ai-first-contracts/enums";
 import type { ProviderUsageMetadata } from "@ai-first-contracts/providers/ai-provider";
-import { postJson } from "@ai-first-core/providers/shared/http";
+import { ProviderHttpError, postJson } from "@ai-first-core/providers/shared/http";
 
 interface OpenAiPingResponse {
   output_text?: string;
@@ -16,6 +16,7 @@ interface GeminiPingResponse {
     content?: {
       parts?: Array<{
         text?: string;
+        thought?: boolean;
       }>;
     };
   }>;
@@ -23,6 +24,17 @@ interface GeminiPingResponse {
     promptTokenCount?: number;
     candidatesTokenCount?: number;
   };
+}
+
+interface GeminiStreamDiagnostic {
+  preview: string;
+  thoughtPreview: string;
+  usage?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    totalTokenCount?: number;
+  };
+  finishReason?: string | null;
 }
 
 interface AnthropicPingResponse {
@@ -54,6 +66,76 @@ interface PingResult {
   message: string;
   usage: ProviderUsageMetadata;
   preview: string;
+}
+
+const GEMINI_TRANSIENT_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+const GEMINI_PING_RETRY_DELAYS_MS = [3_000, 8_000, 15_000];
+
+function isGemini3Model(model: string): boolean {
+  return /^gemini-3(?:\.|-)/.test(model);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function providerErrorMessage(error: unknown): string {
+  if (
+    error instanceof ProviderHttpError &&
+    error.responseBody &&
+    typeof error.responseBody === "object" &&
+    "error" in error.responseBody &&
+    error.responseBody.error &&
+    typeof error.responseBody.error === "object" &&
+    "message" in error.responseBody.error &&
+    typeof error.responseBody.error.message === "string"
+  ) {
+    return error.responseBody.error.message;
+  }
+
+  return error instanceof Error ? error.message : "Error desconocido probando Gemini.";
+}
+
+function isTransientGeminiError(error: unknown): boolean {
+  if (error instanceof ProviderHttpError) {
+    return GEMINI_TRANSIENT_STATUSES.has(error.status);
+  }
+
+  if (error instanceof Error) {
+    const normalizedMessage = error.message.toLowerCase();
+    return (
+      error.name === "AbortError" ||
+      normalizedMessage.includes("aborted") ||
+      normalizedMessage.includes("fetch failed") ||
+      normalizedMessage.includes("timeout") ||
+      normalizedMessage.includes("econnreset") ||
+      normalizedMessage.includes("etimedout")
+    );
+  }
+
+  return false;
+}
+
+async function withGeminiPingRetries<T>(args: { model: string; operation: () => Promise<T> }): Promise<T> {
+  const maxAttempts = isGemini3Model(args.model) ? 4 : 2;
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await args.operation();
+    } catch (error) {
+      lastError = error;
+      if (!isTransientGeminiError(error) || attempt === maxAttempts) {
+        break;
+      }
+
+      await sleep(GEMINI_PING_RETRY_DELAYS_MS[attempt - 1] ?? 15_000);
+    }
+  }
+
+  throw new Error(
+    `Gemini no respondio de forma estable despues de ${maxAttempts} intento(s). Ultimo error: ${providerErrorMessage(lastError)}`,
+  );
 }
 
 function buildUsage(args: {
@@ -107,28 +189,64 @@ async function pingOpenAi(input: { apiKey: string; baseUrl: string; model: strin
 
 async function pingGemini(input: { apiKey: string; baseUrl: string; model: string }): Promise<PingResult> {
   const startedAt = Date.now();
-  const response = await postJson<GeminiPingResponse>({
-    url: `${input.baseUrl.replace(/\/$/, "")}/v1beta/models/${input.model}:generateContent`,
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": input.apiKey,
-    },
-    timeoutMs: 20_000,
-    body: {
-      contents: [{ parts: [{ text: "Reply with the single word OK." }] }],
-      generationConfig: {
-        temperature: 0,
-        maxOutputTokens: 32,
-        responseMimeType: "text/plain",
-      },
-    },
+  if (isGemini3Model(input.model)) {
+    const diagnostic = await pingGeminiStream(input);
+
+    return {
+      message: `Conexion exitosa con gemini:${input.model}.`,
+      preview: diagnostic.preview || diagnostic.thoughtPreview || "OK",
+      usage: buildUsage({
+        provider: "gemini",
+        model: input.model,
+        startedAt,
+        inputTokens: diagnostic.usage?.promptTokenCount ?? null,
+        outputTokens: diagnostic.usage?.candidatesTokenCount ?? null,
+        finishReason: diagnostic.finishReason ?? null,
+      }),
+    };
+  }
+
+  const timeoutMs = isGemini3Model(input.model) ? 180_000 : 30_000;
+  const response = await withGeminiPingRetries({
+    model: input.model,
+    operation: () =>
+      postJson<GeminiPingResponse>({
+        url: `${input.baseUrl.replace(/\/$/, "")}/v1beta/models/${input.model}:generateContent`,
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": input.apiKey,
+        },
+        timeoutMs,
+        body: {
+          contents: [{ parts: [{ text: 'Return this JSON exactly: {"ok": true}' }] }],
+          generationConfig: {
+            temperature: 0,
+            maxOutputTokens: 512,
+            responseMimeType: "application/json",
+            responseJsonSchema: {
+              type: "object",
+              properties: {
+                ok: { type: "boolean" },
+              },
+              required: ["ok"],
+              additionalProperties: false,
+            },
+            ...(isGemini3Model(input.model) ? { thinkingConfig: { thinkingLevel: "low" } } : {}),
+          },
+        },
+      }),
   });
 
   const preview =
     response.candidates?.[0]?.content?.parts
       ?.map((part) => part.text ?? "")
       .join("\n")
-      .trim() || "OK";
+      .trim() ?? "";
+
+  if (!preview) {
+    const finishReason = response.candidates?.[0]?.finishReason ?? "sin finishReason";
+    throw new Error(`Gemini respondio, pero no devolvio texto util para confirmar conexion (${finishReason}).`);
+  }
 
   return {
     message: `Conexion exitosa con gemini:${input.model}.`,
@@ -142,6 +260,104 @@ async function pingGemini(input: { apiKey: string; baseUrl: string; model: strin
       finishReason: response.candidates?.[0]?.finishReason ?? null,
     }),
   };
+}
+
+async function pingGeminiStream(input: { apiKey: string; baseUrl: string; model: string }): Promise<GeminiStreamDiagnostic> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 180_000);
+
+  try {
+    const response = await fetch(`${input.baseUrl.replace(/\/$/, "")}/v1beta/models/${input.model}:streamGenerateContent?alt=sse`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": input.apiKey,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: 'Return this JSON exactly: {"ok": true}' }] }],
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 256,
+          responseMimeType: "application/json",
+          thinkingConfig: {
+            thinkingLevel: "low",
+            includeThoughts: true,
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      let body: unknown = null;
+      try {
+        body = await response.json();
+      } catch {
+        body = await response.text().catch(() => null);
+      }
+
+      throw new ProviderHttpError(`Gemini stream respondio ${response.status}.`, response.status, body);
+    }
+
+    if (!response.body) {
+      throw new Error("Gemini stream no devolvio cuerpo de respuesta.");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let answer = "";
+    let thoughts = "";
+    let finishReason: string | null = null;
+    let usage: GeminiStreamDiagnostic["usage"] | undefined;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      const chunk = decoder.decode(value, { stream: true });
+      for (const line of chunk.split(/\r?\n/)) {
+        if (!line.startsWith("data: ")) {
+          continue;
+        }
+
+        const data = line.slice(6).trim();
+        if (!data || data === "[DONE]") {
+          continue;
+        }
+
+        const json = JSON.parse(data) as GeminiPingResponse;
+        finishReason = json.candidates?.[0]?.finishReason ?? finishReason;
+        usage = json.usageMetadata ?? usage;
+
+        for (const part of json.candidates?.[0]?.content?.parts ?? []) {
+          if (!part.text) {
+            continue;
+          }
+
+          if ("thought" in part && part.thought === true) {
+            thoughts += part.text;
+          } else {
+            answer += part.text;
+          }
+        }
+      }
+    }
+
+    if (!answer && !thoughts) {
+      throw new Error(`Gemini stream termino sin texto util (${finishReason ?? "sin finishReason"}).`);
+    }
+
+    return {
+      preview: answer.trim(),
+      thoughtPreview: thoughts.trim(),
+      usage,
+      finishReason,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function pingAnthropic(input: { apiKey: string; baseUrl: string; model: string }): Promise<PingResult> {

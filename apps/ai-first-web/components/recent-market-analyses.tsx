@@ -1,9 +1,25 @@
 import Link from "next/link";
 
 import { getMarketAnalysisService } from "@web/lib/market-analysis-service";
+import type { MarketAnalysisRunStatus } from "@web/lib/market-analysis-store";
 
-export function RecentMarketAnalyses() {
-  const runs = getMarketAnalysisService().listRuns(6);
+function statusClassName(status: MarketAnalysisRunStatus): string {
+  if (status === "completed") return "status-completed";
+  if (status === "failed") return "status-failed";
+  return "status-completed_with_warnings";
+}
+
+export function RecentMarketAnalyses(props: {
+  odooProjectId?: string;
+  title?: string;
+  emptyText?: string;
+  limit?: number;
+}) {
+  const runs = getMarketAnalysisService()
+    .listRuns(props.odooProjectId ? 100 : props.limit ?? 6)
+    .filter((run) => !props.odooProjectId || String(run.odooProjectId ?? "") === props.odooProjectId)
+    .slice(0, props.limit ?? 6);
+  const title = props.title ?? "Proyectos vivos";
 
   if (runs.length === 0) {
     return (
@@ -11,10 +27,10 @@ export function RecentMarketAnalyses() {
         <div className="panel-header">
           <div>
             <div className="eyebrow">Actividad</div>
-            <h2>Análisis recientes</h2>
+            <h2>{title}</h2>
           </div>
         </div>
-        <p className="muted">Aún no hay matrices de análisis de mercado. Cuando hagas la primera corrida, aparecerá aquí.</p>
+        <p className="muted">{props.emptyText ?? "Aún no hay análisis creados."}</p>
       </section>
     );
   }
@@ -24,26 +40,22 @@ export function RecentMarketAnalyses() {
       <div className="panel-header">
         <div>
           <div className="eyebrow">Actividad</div>
-          <h2>Análisis recientes</h2>
+          <h2>{title}</h2>
         </div>
-        <span className="status-pill">{runs.length} visibles</span>
       </div>
       <div className="stack">
         {runs.map((run) => (
           <Link key={run.runId} href={`/market-analysis/${run.runId}/financial`} className="run-card">
             <div>
-              <div className="eyebrow">Proyecto {run.projectCode}</div>
-              <strong>{run.fileName}</strong>
-              <div className="muted small">
-                {run.rowCount} filas · {run.provider}/{run.model}
-              </div>
-              <div className="muted small">Última actualización: {new Date(run.updatedAt).toLocaleString("es-CO")}</div>
+              <div className="eyebrow">{run.odooProjectName ? "Proyecto Odoo" : `Proyecto ${run.projectCode}`}</div>
+              <strong>{run.odooProjectName ?? run.fileName}</strong>
+              {run.odooProjectName ? <div className="muted small">{run.fileName}</div> : null}
+              <div className="muted small">{run.rowCount} filas · {new Date(run.updatedAt).toLocaleString("es-CO")}</div>
             </div>
             <div className="run-card-meta">
-              <span className={`status-pill ${run.status === "completed" ? "status-completed" : "status-failed"}`}>
+              <span className={`status-pill ${statusClassName(run.status)}`}>
                 {run.status}
               </span>
-              <span className="small muted">{run.usage?.inputTokens ?? 0}/{run.usage?.outputTokens ?? 0} tok</span>
             </div>
           </Link>
         ))}

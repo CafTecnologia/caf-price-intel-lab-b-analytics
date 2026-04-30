@@ -3,12 +3,17 @@ import "./globals.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { ProviderSettingsPanel } from "../components/provider-settings-panel";
+import { getHomePageProviderSettings } from "../lib/server-data";
+
 export const metadata: Metadata = {
-  title: "Mesa de Trabajo de Oferta",
-  description: "Análisis de mercado, simulación financiera y oferta económica en una sola estación local.",
+  title: "analisis Financiero - B",
+  description: "Analisis de mercado, simulacion financiera y oferta economica.",
 };
 
 export default function RootLayout(props: { children: React.ReactNode }) {
+  const providerSettings = getHomePageProviderSettings();
+
   return (
     <html lang="en">
       <body>
@@ -18,17 +23,20 @@ export default function RootLayout(props: { children: React.ReactNode }) {
               <Link href="/" className="brand">
                 <span className="brand-mark">OF</span>
                 <div>
-                  <strong>Mesa de Oferta</strong>
-                  <div className="muted small">Análisis de mercado, pricing y propuesta económica</div>
+                  <strong>analisis Financiero - B</strong>
+                  <div className="muted small">Analisis de mercado y oferta economica</div>
                 </div>
               </Link>
               <nav className="topbar-nav">
                 <Link href="/" className="topbar-link">
                   Inicio
                 </Link>
-                <Link href="/?settings=open#ai-settings-drawer" className="topbar-link">
-                  Configuración IA
-                </Link>
+                <details className="topbar-settings">
+                  <summary className="topbar-link topbar-settings-trigger">Configuración IA</summary>
+                  <div className="topbar-settings-menu">
+                    <ProviderSettingsPanel initialSettings={providerSettings} surface="plain" compact />
+                  </div>
+                </details>
               </nav>
             </div>
           </header>

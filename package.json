@@ -1,5 +1,5 @@
 {
-  "name": "procurement-analytics-ai-first",
+  "name": "analisis-financiero-b",
   "version": "0.2.0",
   "private": true,
   "type": "module",
@@ -11,6 +11,9 @@
     "ai-first:web:build": "npm --prefix apps/ai-first-web run build",
     "ai-first:typecheck": "tsc -p tsconfig.json --noEmit",
     "ai-first:test": "vitest run",
+    "ai-first:test:runner": "vitest run apps/ai-first-web/test/document-analysis-runner.test.ts apps/ai-first-web/test/market-analysis-quality-gate.test.ts",
+    "ai-first:test:export": "vitest run apps/ai-first-web/test/market-analysis-export.test.ts",
+    "ai-first:quick": "npm run ai-first:typecheck && npm run ai-first:test",
     "ai-first:audit": "tsx packages/ai-first-core/src/audit/run-phase-audit.ts",
     "ai-first:prisma:validate": "cmd /c \"if not defined PRISMA_DATABASE_URL set PRISMA_DATABASE_URL=postgresql://procurement:procurement@localhost:5432/procurement?schema=public && prisma.cmd validate --schema prisma/schema.prisma\"",
     "ai-first:prisma:generate": "prisma generate --schema prisma/schema.prisma"

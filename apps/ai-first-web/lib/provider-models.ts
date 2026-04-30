@@ -14,6 +14,7 @@ export interface ProviderConnectionSummary {
   lastTestStatus: "idle" | "success" | "error";
   lastTestMessage: string | null;
   lastTestAt: string | null;
+  lastTestModel: string | null;
   isActive: boolean;
 }
 
@@ -43,8 +44,11 @@ export const PROVIDER_MODEL_OPTIONS: Record<AiProvider, ProviderModelOption[]> =
     { value: "gpt-4o-mini", label: "gpt-4o-mini" },
   ],
   gemini: [
-    { value: "gemini-2.5-flash", label: "gemini-2.5-flash" },
-    { value: "gemini-2.5-pro", label: "gemini-2.5-pro" },
+    { value: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro Preview", description: "Modelo principal: razonamiento profundo, PDF, contexto largo, grounding y salida estructurada." },
+    { value: "gemini-3.1-flash-lite-preview", label: "Gemini 3.1 Flash-Lite Preview", description: "Fallback 3.1 rapido: extraccion y documentos con menor latencia." },
+    { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", description: "Fallback estable de razonamiento largo." },
+    { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", description: "Fallback estable rapido." },
+    { value: "gemini-3-flash-preview", label: "Gemini 3 Flash Preview", description: "Alias disponible en algunas cuentas; se conserva como opcion manual." },
     { value: "gemini-2.0-flash", label: "gemini-2.0-flash" },
   ],
   anthropic: [

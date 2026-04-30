@@ -8,6 +8,7 @@ import { z } from "zod";
 import { AI_PROVIDERS, FILE_TYPES } from "@ai-first-contracts/enums";
 
 import { backupCorruptedJsonFile, readSanitizedJsonText } from "./local-json-file";
+import { MARKET_ANALYSIS_RUN_STATUSES, type MarketAnalysisRunStatus } from "./market-analysis-quality-gate";
 import { MarketAnalysisResultSchema } from "./market-analysis-schema";
 
 const PROJECT_CODE_PATTERN = /^P\d{5}$/;
@@ -16,9 +17,11 @@ const StoredMarketAnalysisRunSchema = z
   .object({
     runId: z.string().trim().min(1),
     projectCode: z.string().trim().regex(PROJECT_CODE_PATTERN).optional(),
+    odooProjectId: z.number().int().positive().nullable().optional(),
+    odooProjectName: z.string().trim().nullable().optional(),
     fileName: z.string().trim().min(1),
     fileType: z.enum(FILE_TYPES),
-    status: z.enum(["completed", "failed"]),
+    status: z.enum(MARKET_ANALYSIS_RUN_STATUSES),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
     provider: z.enum(AI_PROVIDERS),
@@ -46,6 +49,7 @@ type StoredMarketAnalysisRun = z.infer<typeof StoredMarketAnalysisRunSchema>;
 export type MarketAnalysisRun = Omit<StoredMarketAnalysisRun, "projectCode"> & {
   projectCode: string;
 };
+export type { MarketAnalysisRunStatus };
 
 type MarketAnalysisStoreData = {
   runs: MarketAnalysisRun[];

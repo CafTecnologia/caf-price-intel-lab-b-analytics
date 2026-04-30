@@ -1,12 +1,18 @@
 {
-  "name": "ai-first-web",
+  "name": "analisis-financiero-b-web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "replay:market": "node scripts/replay-market-analysis.mjs",
+    "evaluate:document": "node scripts/evaluate-document-analysis.mjs",
+    "fixture:from-run": "node scripts/create-document-fixture-from-run.mjs",
+    "test:e2e": "playwright test --config=playwright.config.cjs",
+    "test:runner": "cd ../.. && npx vitest run apps/ai-first-web/test/document-analysis-runner.test.ts",
+    "test:export": "cd ../.. && npx vitest run apps/ai-first-web/test/market-analysis-export.test.ts"
   },
   "dependencies": {
     "next": "^15.3.0",
@@ -14,7 +20,9 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
-    "@types/react": "^19.1.2",
+    "@playwright/test": "1.56.1",
+    "@types/node": "25.6.0",
+    "@types/react": "19.2.14",
     "@types/react-dom": "^19.1.2",
     "typescript": "^5.9.3"
   }

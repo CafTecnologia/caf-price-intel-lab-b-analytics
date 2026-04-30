@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { MarketAnalysisTabs } from "../../../components/market-analysis-tabs";
 import { MarketAnalysisTable } from "../../../components/market-analysis-table";
+import { ProcessTraceLog } from "../../../components/process-trace-log";
 import { TokenUsagePanel } from "../../../components/token-usage-panel";
 import { getMarketAnalysisService } from "../../../lib/market-analysis-service";
 
@@ -138,6 +139,7 @@ export default async function MarketAnalysisResultPage(props: {
             <p className="muted small">Una fila por ítem, 15 columnas fijas, lista para Excel.</p>
           </div>
         </div>
+        {!focusMode ? <ProcessTraceLog run={run} /> : null}
         <MarketAnalysisTable run={run} openInNewTabHref={!focusMode ? `/market-analysis/${runId}?focus=table` : undefined} />
       </section>
     </div>

@@ -1,0 +1,44 @@
+{
+  "case_id": "lab50_estudio_mercado_20250506",
+  "document_name": "lab50_estudio_mercado_20250506.xlsx",
+  "description": "Fixture inicial tomado de document-pipeline-core/lab-50/excel. Expected deliberadamente simple: sirve para detectar regresiones gruesas, no para exigir perfeccion.",
+  "metadata": {
+    "manual_reviewed": false,
+    "expected_confidence": "low",
+    "source_of_truth": "synthetic",
+    "human_review_required": true,
+    "notes": "Expected debil. Requiere revision humana para convertirse en golden."
+  },
+  "expected": {
+    "json_valid": true,
+    "item_count": {
+      "min": 1
+    },
+    "required_fields": [
+      "item",
+      "description",
+      "technical_description",
+      "quantity",
+      "fit_analysis",
+      "source_1",
+      "source_2",
+      "source_3",
+      "reference_unit",
+      "notes"
+    ],
+    "minimum_field_coverage": {
+      "quantity": 0.5,
+      "reference_unit": 0.5,
+      "technical_description": 0.5
+    },
+    "expected_items": [],
+    "warnings": {
+      "allow": true,
+      "max": 10
+    },
+    "pipeline": {
+      "required": true,
+      "allow_stage_failures": false
+    }
+  }
+}

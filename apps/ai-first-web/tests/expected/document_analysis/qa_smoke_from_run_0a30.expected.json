@@ -1,0 +1,79 @@
+{
+  "case_id": "qa_smoke_from_run_0a30",
+  "document_name": "qa_smoke_from_run_0a30_00_OFERTA_ECONOMICA_1_.xlsx",
+  "source_run_id": "0a30be51-3771-403d-bd32-7a7b835790ac",
+  "description": "Expected generado automaticamente desde un run. Ajusta minimos y expected_items despues de revisar el caso.",
+  "metadata": {
+    "manual_reviewed": false,
+    "expected_confidence": "low",
+    "source_of_truth": "provisional_current_run",
+    "human_review_required": true,
+    "notes": "Generado desde salida actual de la app. No es golden. reference_unit no se fija por item porque el seed previo contenia unidades como UND, no precios."
+  },
+  "expected": {
+    "json_valid": true,
+    "item_count": {
+      "min": 8
+    },
+    "required_fields": [
+      "item",
+      "description",
+      "technical_description",
+      "quantity",
+      "fit_analysis",
+      "source_1",
+      "source_2",
+      "source_3",
+      "reference_unit",
+      "notes"
+    ],
+    "minimum_field_coverage": {
+      "quantity": 0.5,
+      "reference_unit": 0.5,
+      "technical_description": 0.5
+    },
+    "expected_items": [
+      {
+        "item": "1",
+        "description": "Mantenimiento preventivo para servidores y almacenamiento",
+        "quantity": "6"
+      },
+      {
+        "item": "2",
+        "description": "Mantenimiento preventivo para tape backup",
+        "quantity": "1"
+      },
+      {
+        "item": "3",
+        "description": "Mantenimiento preventivo para Switch",
+        "quantity": "10"
+      },
+      {
+        "item": "4",
+        "description": "Mantenimiento preventivo para Unidades de almacenamiento",
+        "quantity": "1"
+      },
+      {
+        "item": "5",
+        "description": "Mantenimiento preventivo para estaciones de trabajo",
+        "quantity": "195"
+      }
+    ],
+    "warnings": {
+      "allow": true,
+      "max": 10
+    },
+    "pipeline": {
+      "required": true,
+      "allow_stage_failures": false,
+      "required_stages": [
+        "document_map",
+        "extraction_plan",
+        "official_price_table_extraction",
+        "normalized_items_generation",
+        "audit_pass",
+        "final_result"
+      ]
+    }
+  }
+}

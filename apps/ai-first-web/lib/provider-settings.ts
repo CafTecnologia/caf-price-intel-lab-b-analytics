@@ -24,6 +24,7 @@ const StoredProviderConnectionSchema = z
     lastTestStatus: z.enum(["idle", "success", "error"]).default("idle"),
     lastTestMessage: z.string().trim().min(1).nullable().default(null),
     lastTestAt: z.string().datetime().nullable().default(null),
+    lastTestModel: z.string().trim().min(1).nullable().default(null),
   })
   .strict();
 
@@ -68,6 +69,7 @@ function defaultConnection(provider: AiProvider): StoredProviderConnection {
     lastTestStatus: "idle",
     lastTestMessage: null,
     lastTestAt: null,
+    lastTestModel: null,
   };
 }
 
@@ -113,6 +115,7 @@ function toSummary(settings: StoredProviderSettings): ProviderSettingsSummary {
         lastTestStatus: connection.lastTestStatus,
         lastTestMessage: connection.lastTestMessage,
         lastTestAt: connection.lastTestAt,
+        lastTestModel: connection.lastTestModel,
         isActive: settings.activeProvider === provider,
       };
 
@@ -227,16 +230,29 @@ export function saveProviderConnection(input: {
 }): ProviderSettingsSummary {
   const settings = readStoredProviderSettings();
   const current = settings.connections[input.provider];
+  const nextModel = input.model.trim() || current.model;
   const nextApiKey = input.clearApiKey
     ? null
     : input.apiKey && input.apiKey.trim().length > 0
       ? input.apiKey.trim()
       : current.apiKey;
+  const connectionChanged =
+    current.model !== nextModel ||
+    current.apiKey !== nextApiKey ||
+    Boolean(input.clearApiKey);
 
   settings.connections[input.provider] = {
     ...current,
     apiKey: nextApiKey,
-    model: input.model.trim() || current.model,
+    model: nextModel,
+    ...(connectionChanged
+      ? {
+          lastTestStatus: "idle",
+          lastTestMessage: "Configuracion guardada. Falta probar la conexion para confirmar este modelo.",
+          lastTestAt: null,
+          lastTestModel: null,
+        }
+      : {}),
   };
 
   if (input.setActive !== false) {
@@ -251,6 +267,7 @@ export function recordProviderTestResult(input: {
   provider: AiProvider;
   status: "success" | "error";
   message: string;
+  model?: string;
 }): ProviderSettingsSummary {
   const settings = readStoredProviderSettings();
   const current = settings.connections[input.provider];
@@ -260,6 +277,7 @@ export function recordProviderTestResult(input: {
     lastTestStatus: input.status,
     lastTestMessage: input.message,
     lastTestAt: toIsoNow(),
+    lastTestModel: input.model?.trim() || current.model,
   };
 
   persist(settings);

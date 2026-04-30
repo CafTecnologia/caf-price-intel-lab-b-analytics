@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       settings,
-      message: `Configuracion guardada. ${payload.provider} queda como proveedor por defecto para nuevas tareas.`,
+      message: `Configuracion guardada. ${payload.provider} queda como proveedor por defecto; prueba la conexion para confirmarla.`,
     });
   } catch (error) {
     return NextResponse.json(

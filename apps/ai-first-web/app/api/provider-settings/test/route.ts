@@ -10,6 +10,7 @@ import {
   readStoredProviderSettings,
   recordProviderTestResult,
   resolveSavedModel,
+  saveProviderConnection,
 } from "@web/lib/provider-settings";
 
 const TestProviderConnectionSchema = z
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
     }
 
     try {
-      return (JSON.parse(rawBody) as { provider?: AiProvider }) ?? null;
+      return (JSON.parse(rawBody) as { provider?: AiProvider; model?: unknown }) ?? null;
     } catch {
       return null;
     }
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
     const stored = readStoredProviderSettings();
     const provider = payload.provider as AiProvider;
     const apiKey = payload.apiKey?.trim() || stored.connections[provider].apiKey;
+    const model = resolveSavedModel(provider, payload.model);
 
     if (!apiKey) {
       return NextResponse.json(
@@ -47,7 +49,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const model = resolveSavedModel(provider, payload.model);
+    saveProviderConnection({
+      provider,
+      apiKey: payload.apiKey,
+      model,
+      setActive: true,
+    });
+
     const result = await testProviderConnection({
       provider,
       apiKey,
@@ -59,6 +67,7 @@ export async function POST(request: Request) {
       provider,
       status: "success",
       message: result.message,
+      model,
     });
 
     return NextResponse.json({
@@ -89,6 +98,7 @@ export async function POST(request: Request) {
           provider,
           status: "error",
           message,
+          model: unsafePayload && "model" in unsafePayload && typeof unsafePayload.model === "string" ? unsafePayload.model : undefined,
         })
       : getProviderSettingsSummary();
 

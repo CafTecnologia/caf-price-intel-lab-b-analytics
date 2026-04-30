@@ -1,4 +1,4 @@
-# Procurement Analytics Monorepo
+# analisis Financiero - B
 
 Plataforma auditable para analisis documental, benchmark y viabilidad financiera de procesos de contratacion publica en Colombia.
 
@@ -21,7 +21,7 @@ La solucion corre de dos maneras usando el mismo motor de negocio:
 ## Estructura
 
 ```text
-procurement-analytics/
+analisis-financiero-b/
 |- apps/
 |  |- api/                      FastAPI + Celery + Alembic
 |  `- web/                      React + Vite

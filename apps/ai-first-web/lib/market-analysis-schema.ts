@@ -29,12 +29,7 @@ export const MARKET_ANALYSIS_TRANSPORT_KEYS = [
   "source_1",
   "source_2",
   "source_3",
-  "cost_optimistic",
-  "cost_moderate",
-  "weighted_unit",
-  "weighted_total",
   "reference_unit",
-  "viability",
   "notes",
 ] as const;
 
@@ -78,6 +73,27 @@ export const MarketAnalysisTransportResultSchema = z
 export type MarketAnalysisResult = z.infer<typeof MarketAnalysisResultSchema>;
 export type MarketAnalysisTransportResult = z.infer<typeof MarketAnalysisTransportResultSchema>;
 
+function normalizeObjectKeys(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeObjectKeys(item));
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, entryValue]) => [
+      key.replace(/\s+/g, "").trim(),
+      normalizeObjectKeys(entryValue),
+    ]),
+  );
+}
+
+export function normalizeMarketAnalysisTransportPayload(input: unknown): unknown {
+  return normalizeObjectKeys(input);
+}
+
 export function normalizeMarketAnalysisRow(input: Partial<Record<MarketAnalysisColumn, unknown>>): MarketAnalysisRow {
   return Object.fromEntries(
     MARKET_ANALYSIS_COLUMNS.map((column) => {
@@ -99,12 +115,12 @@ export function normalizeMarketAnalysisTransportResult(input: MarketAnalysisTran
         [MARKET_ANALYSIS_COLUMNS[5]]: row.source_1,
         [MARKET_ANALYSIS_COLUMNS[6]]: row.source_2,
         [MARKET_ANALYSIS_COLUMNS[7]]: row.source_3,
-        [MARKET_ANALYSIS_COLUMNS[8]]: row.cost_optimistic,
-        [MARKET_ANALYSIS_COLUMNS[9]]: row.cost_moderate,
-        [MARKET_ANALYSIS_COLUMNS[10]]: row.weighted_unit,
-        [MARKET_ANALYSIS_COLUMNS[11]]: row.weighted_total,
+        [MARKET_ANALYSIS_COLUMNS[8]]: "",
+        [MARKET_ANALYSIS_COLUMNS[9]]: "",
+        [MARKET_ANALYSIS_COLUMNS[10]]: "",
+        [MARKET_ANALYSIS_COLUMNS[11]]: "",
         [MARKET_ANALYSIS_COLUMNS[12]]: row.reference_unit,
-        [MARKET_ANALYSIS_COLUMNS[13]]: row.viability,
+        [MARKET_ANALYSIS_COLUMNS[13]]: "",
         [MARKET_ANALYSIS_COLUMNS[14]]: row.notes,
       }),
     ),
