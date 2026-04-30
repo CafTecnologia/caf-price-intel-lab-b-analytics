@@ -60,11 +60,11 @@ export function ProcessTraceLog(props: { run: MarketAnalysisRun; stages?: Market
   ].filter((message): message is string => Boolean(message));
 
   return (
-    <details className="trace-log">
+    <details className="trace-log trace-log-blackbox">
       <summary className="trace-log-summary">
         <span>
-          <strong>Log del proceso</strong>
-          <small>IA, fallback, fuentes y cobertura</small>
+          <strong>Caja negra técnica</strong>
+          <small>Logs completos para auditoría, soporte y mejora interna</small>
         </span>
         <span className="status-pill">{allMessages.length} evento(s)</span>
       </summary>
@@ -81,7 +81,7 @@ export function ProcessTraceLog(props: { run: MarketAnalysisRun; stages?: Market
 
         {allMessages.length > 0 ? (
           <div className="trace-log-section">
-            <h3>Eventos relevantes</h3>
+            <h3>Eventos técnicos completos</h3>
             <ul className="plain-list">
               {allMessages.map((message, index) => (
                 <li key={`${message}-${index}`}>{message}</li>

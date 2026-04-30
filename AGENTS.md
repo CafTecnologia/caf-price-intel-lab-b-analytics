@@ -43,3 +43,20 @@ Usar:
 - Reintentar: POST /api/market-analysis/<runId>/retry
 - CLI replay: npm run replay:market -- --run-id <runId>
 - CLI archivo: npm run replay:market -- --file <ruta>
+
+## Protocolo UI de resultados
+
+- La pantalla normal del usuario debe mostrar solo notas comerciales/documentales utiles para decidir.
+- Los eventos tecnicos completos viven en "Caja negra tecnica", cerrada por defecto.
+- No mostrar como notas normales: `STREAM_GEMINI`, modelo efectivo, tokens, auditoria local, fallback interno, errores crudos del proveedor o detalles de etapas.
+- Si hay `completed_with_warnings`, la UI debe decir que hay notas de revision, no que el resultado fallo.
+- Si hay `partial_review_required`, la UI debe advertir que faltan validaciones o datos importantes.
+- Las pruebas E2E deben verificar que la caja negra existe, esta cerrada por defecto y que los mensajes tecnicos no aparecen en el texto visible normal.
+
+## Roles de subagentes para App B
+
+- QA Runner: valida que los warnings tecnicos sigan auditables sin convertirse en mensajes de usuario.
+- Backend Quality Gate: mantiene estados honestos (`completed`, `completed_with_warnings`, `partial_review_required`, `failed`) sin ocultar fallas internas.
+- Frontend/E2E/Excel: compara backend, UI y XLSX; ademas verifica separacion entre resumen para usuario y caja negra tecnica.
+- IA Audit / Prompt: revisa calidad documental y prompt sin convertir logs internos en instrucciones para el usuario final.
+- Performance / Test Strategy: cuida tiempos, retries y fallbacks; los detalles de performance deben quedar en caja negra, no en UX principal.

@@ -553,6 +553,11 @@ textarea {
   padding-left: 1.2rem;
 }
 
+.user-run-notes {
+  display: grid;
+  gap: 0.55rem;
+}
+
 .table-scroll {
   overflow-x: auto;
   overflow-y: auto;
@@ -1160,6 +1165,36 @@ input[type="range"] {
   border-radius: 1.1rem;
   background: rgba(255, 255, 255, 0.72);
   overflow: hidden;
+}
+
+.trace-log-blackbox {
+  background: rgba(36, 28, 18, 0.92);
+  color: #fff8ef;
+  border-color: rgba(255, 248, 239, 0.14);
+}
+
+.trace-log-blackbox .trace-log-summary small,
+.trace-log-blackbox .trace-log-card span,
+.trace-log-blackbox .muted {
+  color: rgba(255, 248, 239, 0.68);
+}
+
+.trace-log-blackbox .status-pill {
+  background: rgba(255, 248, 239, 0.12);
+  color: #fff8ef;
+}
+
+.trace-log-blackbox .trace-log-body {
+  border-top-color: rgba(255, 248, 239, 0.12);
+}
+
+.trace-log-blackbox .trace-log-card {
+  background: rgba(255, 248, 239, 0.08);
+  border-color: rgba(255, 248, 239, 0.1);
+}
+
+.trace-log-blackbox a {
+  color: #f0cfac;
 }
 
 .trace-log-summary {

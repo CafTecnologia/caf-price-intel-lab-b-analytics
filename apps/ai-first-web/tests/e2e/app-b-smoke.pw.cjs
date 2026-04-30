@@ -49,11 +49,18 @@ test("App B smoke: home, config, matrix, backend and Excel export", async ({ pag
 
   if (apiPayload.run.status !== "completed") {
     await expect(page.locator(".warning-panel").first()).toBeVisible();
+    await expect(page.getByText(/Resumen para usuario/i).first()).toBeVisible();
+    await expect(page.getByText(/Notas relevantes de la corrida/i).first()).toBeVisible();
   }
 
   if (apiPayload.run.result.warnings.length > 0) {
     await expect(page.locator(".warning-panel").first()).toBeVisible();
   }
+
+  await expect(page.getByText(/Caja negra t[eé]cnica/i).first()).toBeVisible();
+  await expect(page.locator(".trace-log-blackbox")).not.toHaveAttribute("open", "");
+  const visibleMatrixText = await page.locator("body").innerText();
+  expect(visibleMatrixText).not.toMatch(/STREAM_GEMINI|Modelo IA efectivo|Conteo previo Gemini|Auditoria local previa/i);
 
   const exportResponse = await request.get(`${baseUrl}/api/market-analysis/${sampleRunId}/export?format=xlsx`);
   expect(exportResponse.ok()).toBeTruthy();

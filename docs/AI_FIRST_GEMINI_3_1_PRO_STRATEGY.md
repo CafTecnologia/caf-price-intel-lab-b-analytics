@@ -193,6 +193,11 @@ Un cambio de prompt o proveedor se acepta si cumple:
 - La auditoria no detecta secciones omitidas.
 - La corrida guarda modelo, tokens, latencia, prompt version y warnings.
 - El resultado puede abrirse desde Odoo y queda asociado al proyecto sin afectar otros modulos.
+- La UI separa claramente:
+  - resumen para usuario: notas comerciales/documentales accionables;
+  - caja negra tecnica: prompt, modelo, tokens, fallback, etapas, raw/debug y trazabilidad interna.
+- La caja negra tecnica debe estar cerrada por defecto y disponible para soporte/desarrollo.
+- Los tests E2E deben fallar si mensajes tecnicos como `STREAM_GEMINI`, modelo efectivo, conteo de tokens o auditoria local aparecen en el texto visible normal del usuario.
 
 ## Decision actual para App B
 

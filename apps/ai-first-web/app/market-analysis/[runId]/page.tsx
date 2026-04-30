@@ -5,11 +5,46 @@ import { MarketAnalysisProcessingPanel } from "../../../components/market-analys
 import { MarketAnalysisTabs } from "../../../components/market-analysis-tabs";
 import { MarketAnalysisTable } from "../../../components/market-analysis-table";
 import { ProcessTraceLog } from "../../../components/process-trace-log";
-import { TokenUsagePanel } from "../../../components/token-usage-panel";
 import { getMarketAnalysisService } from "../../../lib/market-analysis-service";
-import { isMarketSourcePrice } from "../../../lib/market-source-pricing";
+import type { MarketAnalysisRun } from "../../../lib/market-analysis-store";
 
 const SOURCE_PRICE_FIELDS = ["Fuente 1 (Precio)", "Fuente 2 (Precio)", "Fuente 3 (Precio)"] as const;
+
+function isTechnicalProcessMessage(message: string): boolean {
+  return /STREAM_GEMINI|resumen\(es\) de pensamiento|Modelo IA efectivo|Flujo Gemini|Conteo previo Gemini|Auditoria local previa|Calculos financieros generados|FALLBACK_MODELO_IA|DIRECT_FILE_FALLBACK|DIRECT_TEXT_FALLBACK|STAGED_PIPELINE_FALLBACK|FULL_RUN_FALLBACK|PDF_NATIVO_FALLBACK|Quota exceeded|rate-limit|rate limit|google\.dev|QUALITY_GATE_STAGE_FAILURE|PROCESSING_STARTED/i.test(
+    message,
+  );
+}
+
+function simplifyUserMessage(message: string): string | null {
+  if (/QUALITY_GATE_GROUNDING_NOT_VERIFIED/i.test(message)) {
+    return "Las fuentes y precios quedaron disponibles, pero esta corrida no trajo verificacion automatica de grounding. Conviene revisar URLs y valores antes de tomar una decision final.";
+  }
+
+  const traceability = message.match(/QUALITY_GATE_SOURCE_TRACEABILITY:\s*([^.]*)/i);
+  if (traceability) {
+    return `${traceability[1]} no incluyen URL o dominio trazable. Revisar esas fuentes antes de cerrar la decision.`;
+  }
+
+  if (/Fuentes internacionales USD convertidas/i.test(message)) {
+    return message;
+  }
+
+  if (isTechnicalProcessMessage(message)) {
+    return null;
+  }
+
+  const cleaned = message.replace(/\s+/g, " ").trim();
+  return cleaned && !/^n\/?d$/i.test(cleaned) ? cleaned : null;
+}
+
+function buildUserRunMessages(run: MarketAnalysisRun): string[] {
+  const messages = [...run.result.warnings, ...run.result.provider_notes]
+    .map(simplifyUserMessage)
+    .filter((message): message is string => Boolean(message));
+
+  return Array.from(new Set(messages));
+}
 
 export default async function MarketAnalysisResultPage(props: {
   params: Promise<{ runId: string }>;
@@ -26,15 +61,25 @@ export default async function MarketAnalysisResultPage(props: {
   }
   const stages = service.getRunStages(runId);
   const isFailed = run.status === "failed";
+  const hasPartialResult = run.status === "partial_review_required";
+  const hasCompletedWarnings = run.status === "completed_with_warnings";
   const needsReview = run.status === "partial_review_required" || run.status === "completed_with_warnings";
-  const hasReportedSourceValues = run.result.rows.some((row) =>
-    SOURCE_PRICE_FIELDS.some((field) => {
-      const value = row[field]?.trim();
-      return Boolean(value && !/^n\/?d$/i.test(value));
-    }),
-  );
-  const hasRecognizedMarketSources = run.result.rows.some((row) => SOURCE_PRICE_FIELDS.some((field) => isMarketSourcePrice(row[field])));
   const groundingVerified = run.usage?.grounded === true && run.groundingSources.length > 0;
+  const userRunMessages = buildUserRunMessages(run);
+  const matrixTitle = isFailed
+    ? "Analisis fallido"
+    : hasPartialResult
+      ? "Matriz parcial: requiere revision"
+      : hasCompletedWarnings
+        ? "Matriz con notas de revision"
+        : "Matriz final";
+  const matrixDescription = isFailed
+    ? "La corrida no produjo una matriz util."
+    : hasPartialResult
+      ? "Resultado disponible, pero faltan validaciones o datos importantes antes de usarlo."
+      : hasCompletedWarnings
+        ? "Resultado disponible con notas relevantes para revisar antes de decidir."
+        : "Una fila por item, columnas fijas, lista para Excel.";
 
   if (run.status === "processing") {
     return (
@@ -67,27 +112,14 @@ export default async function MarketAnalysisResultPage(props: {
 
       {needsReview ? (
         <div className="status-banner status-banner-warning">
-          Esta matriz requiere revision: la app conserva el resultado, pero detecto fallas, fallback o advertencias internas.
+          Resultado disponible con notas de revision. Antes de decidir, revisa el resumen para usuario.
         </div>
       ) : null}
       {isFailed ? (
         <div className="status-banner status-banner-error">
-          El analisis fallo. Revisa el log y reintenta; no se muestra como matriz final.
+          El analisis fallo. Revisa la caja negra tecnica y reintenta; no se muestra como matriz final.
         </div>
       ) : null}
-      {hasReportedSourceValues && !groundingVerified ? (
-        <div className="status-banner status-banner-warning">
-          Fuentes no verificadas por grounding: pueden ser reales, pero Gemini no entrego trazabilidad verificable. Revisa URLs,
-          precios y costos antes de decidir.
-        </div>
-      ) : null}
-      {hasRecognizedMarketSources && !groundingVerified ? (
-        <div className="status-banner status-banner-warning">
-          Los costos fueron calculados con precios reportados por IA sin grounding verificable; el resultado queda como insumo de
-          revision, no como cierre definitivo.
-        </div>
-      ) : null}
-
       {!focusMode ? (
         <section className="panel">
           <div className="panel-header">
@@ -160,14 +192,20 @@ export default async function MarketAnalysisResultPage(props: {
         </section>
       ) : null}
 
-      {!focusMode && (run.result.warnings.length > 0 || run.result.provider_notes.length > 0) ? (
+      {!focusMode && userRunMessages.length > 0 ? (
         <section className="panel warning-panel">
           <div className="panel-header">
-            <h2>Advertencias</h2>
+            <div>
+              <div className="eyebrow">Resumen para usuario</div>
+              <h2>Notas relevantes de la corrida</h2>
+              <p className="muted small">
+                Solo se muestran alertas comerciales o documentales utiles para revisar el resultado.
+              </p>
+            </div>
           </div>
-          <ul className="plain-list">
-            {[...run.result.warnings, ...run.result.provider_notes].map((warning) => (
-              <li key={warning}>{warning}</li>
+          <ul className="plain-list user-run-notes">
+            {userRunMessages.map((message) => (
+              <li key={message}>{message}</li>
             ))}
           </ul>
         </section>
@@ -188,19 +226,11 @@ export default async function MarketAnalysisResultPage(props: {
         </section>
       ) : null}
 
-      {!focusMode ? <TokenUsagePanel run={run} /> : null}
-
       <section className={`panel table-stage ${focusMode ? "table-stage-focus" : ""}`}>
         <div className="panel-header">
           <div>
-            <h2>{isFailed ? "Analisis fallido" : needsReview ? "Matriz parcial: requiere revision" : "Matriz final"}</h2>
-            <p className="muted small">
-              {isFailed
-                ? "La corrida no produjo una matriz util."
-                : needsReview
-                  ? "Resultado disponible con advertencias visibles en el log."
-                  : "Una fila por item, columnas fijas, lista para Excel."}
-            </p>
+            <h2>{matrixTitle}</h2>
+            <p className="muted small">{matrixDescription}</p>
           </div>
         </div>
         {!focusMode ? <ProcessTraceLog run={run} stages={stages} /> : null}
