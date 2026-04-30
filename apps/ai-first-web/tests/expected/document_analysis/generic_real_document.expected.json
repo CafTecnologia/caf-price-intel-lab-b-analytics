@@ -30,6 +30,22 @@
       "technical_description": 0.5
     },
     "expected_items": [],
+    "status": {
+      "allowed": [
+        "completed",
+        "completed_with_warnings"
+      ]
+    },
+    "market_sources": {
+      "minimum_priced_source_coverage": 0.5,
+      "minimum_traceable_priced_source_coverage": 0.5,
+      "minimum_distinct_sources_per_row": 2,
+      "minimum_distinct_source_row_coverage": 0.5
+    },
+    "grounding": {
+      "required_for_priced_sources": true,
+      "allow_traceable_sources_without_grounding": true
+    },
     "warnings": {
       "allow": true,
       "max": 15

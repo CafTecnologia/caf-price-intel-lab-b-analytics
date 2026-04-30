@@ -27,6 +27,7 @@ function formatDurationMs(value: number | null): string {
 
 export function TokenUsagePanel(props: { run: MarketAnalysisRun }) {
   const usage = props.run.usage;
+  const groundingVerified = usage?.grounded === true && props.run.groundingSources.length > 0;
   const totalTokens =
     usage && (usage.inputTokens !== null || usage.outputTokens !== null)
       ? (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0)
@@ -68,7 +69,10 @@ export function TokenUsagePanel(props: { run: MarketAnalysisRun }) {
         </div>
         <div className="metric-card">
           <span className="metric-label">Grounding</span>
-          <strong>{usage?.grounded ? "Sí" : "No / no reportado"}</strong>
+          <strong>{groundingVerified ? "Verificado" : "No verificado"}</strong>
+          {usage?.grounded === true && props.run.groundingSources.length === 0 ? (
+            <div className="muted small">El proveedor no entrego fuentes de grounding.</div>
+          ) : null}
         </div>
       </div>
 

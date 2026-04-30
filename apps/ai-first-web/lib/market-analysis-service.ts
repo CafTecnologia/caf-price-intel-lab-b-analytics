@@ -239,8 +239,9 @@ function parseCopMoney(value: string): number | null {
     return null;
   }
 
+  const normalizedValue = value.replace(/(\d)[\s\u00a0]+(?=\d)/g, "$1");
   const parseToken = (candidate: string): number | null => {
-    const cleaned = candidate.replace(/[^\d.,]/g, "");
+    const cleaned = candidate.replace(/(\d)[\s\u00a0]+(?=\d)/g, "$1").replace(/[^\d.,]/g, "");
     if (!cleaned) {
       return null;
     }
@@ -250,7 +251,7 @@ function parseCopMoney(value: string): number | null {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   };
 
-  const moneyMarkerMatches = Array.from(value.matchAll(/(?:COP|COL\$|\$)\s*([0-9][0-9.,]*)/gi));
+  const moneyMarkerMatches = Array.from(normalizedValue.matchAll(/(?:COP|COL\$|\$)\s*([0-9][0-9.,]*)/gi));
   const markerCandidates = moneyMarkerMatches
     .map((match) => parseToken(match[1] ?? ""))
     .filter((candidate): candidate is number => candidate !== null);
@@ -258,12 +259,12 @@ function parseCopMoney(value: string): number | null {
     return markerCandidates[markerCandidates.length - 1] ?? null;
   }
 
-  const trimmed = value.trim();
+  const trimmed = normalizedValue.trim();
   if (/^[\d\s.,]+$/.test(trimmed)) {
     return parseToken(trimmed);
   }
 
-  const thousandsCandidates = (value.match(/\b\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?\b/g) ?? [])
+  const thousandsCandidates = (normalizedValue.match(/\b\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?\b/g) ?? [])
     .map(parseToken)
     .filter((candidate): candidate is number => candidate !== null);
   if (thousandsCandidates.length > 0) {
@@ -1077,8 +1078,16 @@ export class MarketAnalysisService {
       } else {
         providerOutput.result = sanitizeNonMarketSources(providerOutput.result);
       }
-      if (providerOutput.result.provider_notes.some((note) => /busqueda web|búsqueda web|segunda pasada/i.test(note))) {
-        providerOutput.usage.grounded = true;
+      if (providerOutput.usage.groundingSources.length === 0) {
+        providerOutput.usage.grounded = false;
+        if (providerOutput.result.provider_notes.some((note) => /busqueda web|búsqueda web|segunda pasada/i.test(note))) {
+          providerOutput.result.warnings = Array.from(
+            new Set([
+              ...providerOutput.result.warnings,
+              "GROUNDING_NO_VERIFICADO: la IA reporto busqueda o segunda pasada, pero el proveedor no entrego fuentes de grounding verificables.",
+            ]),
+          );
+        }
       }
 
       if (providerOutput.result.rows.length > 0 && !resultHasAnySourcePrice(providerOutput.result)) {

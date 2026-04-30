@@ -1,4 +1,4 @@
-export const MARKET_ANALYSIS_PROMPT_VERSION = "2026-04-30.ai-first.5-gemini31-fullrun";
+export const MARKET_ANALYSIS_PROMPT_VERSION = "2026-04-30.ai-first.6-traceable-sources";
 
 export const MARKET_ANALYSIS_MASTER_PROMPT = `
 Actua como un sistema experto de analisis documental, normalizacion de items, analisis forense tecnico y benchmarking comercial para contratacion estatal y corporativa en Colombia.
@@ -148,17 +148,19 @@ Reglas generales:
    - ecommerce colombiano
    - marketplace trazable
    - fuente internacional trazable cuando aplique
-4. Si no consigues 3 buenas fuentes, devuelve 1 o 2, pero solo despues de intentar varias estrategias razonables.
-5. No metas fuentes malas para completar.
-6. No inventes fuentes, precios, URLs, proveedores ni comparabilidades.
-7. Si la ficha es abierta, busca equivalentes industriales razonables.
-8. Si la ficha es cerrada, busca exactitud tecnica y comercial.
-9. Una fuente marketplace puede ser valida si:
+4. Las 3 fuentes deben ser fuentes distintas. No repitas el mismo proveedor, dominio, fabricante o publicacion para simular cobertura.
+5. Si no consigues 3 buenas fuentes, devuelve 1 o 2, pero solo despues de intentar varias estrategias razonables.
+6. No metas fuentes malas para completar.
+7. No inventes fuentes, precios, URLs, proveedores ni comparabilidades.
+8. Toda fuente con precio debe incluir URL http(s) o dominio verificable. Si no tienes URL/dominio, deja esa fuente en "N/D" y explica en notes: FUENTE_SIN_TRAZABILIDAD.
+9. Si la ficha es abierta, busca equivalentes industriales razonables.
+10. Si la ficha es cerrada, busca exactitud tecnica y comercial.
+11. Una fuente marketplace puede ser valida si:
    - el producto es correcto
    - la publicacion es clara
    - el estado es nuevo o comercialmente utilizable
    - la comparabilidad tecnica es solida
-10. Descarta fuentes:
+12. Descarta fuentes:
    - usadas
    - reacondicionadas
    - ambiguas
@@ -210,7 +212,9 @@ Antes de entregar:
 1. Verifica que el numero de filas corresponda a todos los items visibles.
 2. Verifica que source_1, source_2 y source_3 no contengan precios internos del documento base.
 3. Verifica que reference_unit venga del documento base y no de busquedas externas.
-4. Verifica que la salida sea JSON estricto y que no exista texto fuera del JSON.
+4. Verifica que toda fuente con precio tenga URL http(s) o dominio verificable.
+5. Verifica que source_1, source_2 y source_3 no sean la misma fuente repetida.
+6. Verifica que la salida sea JSON estricto y que no exista texto fuera del JSON.
 `.trim();
 
 function transportContract() {
@@ -254,9 +258,9 @@ Significado de campos:
 - technical_description: ficha tecnica o descripcion completa reconstruida.
 - quantity: cantidad y unidad.
 - fit_analysis: analisis forense breve: tipo de ficha, requisito clave, segmento comercial, lectura comercial y alertas tecnicas.
-- source_1: primera fuente externa comparable, con proveedor/fuente, precio unitario, moneda y trazabilidad minima.
-- source_2: segunda fuente externa comparable, con proveedor/fuente, precio unitario, moneda y trazabilidad minima.
-- source_3: tercera fuente externa comparable, con proveedor/fuente, precio unitario, moneda y trazabilidad minima.
+- source_1: primera fuente externa comparable, con proveedor/fuente, precio unitario, moneda y URL http(s) o dominio verificable.
+- source_2: segunda fuente externa comparable, con proveedor/fuente, precio unitario, moneda y URL http(s) o dominio verificable.
+- source_3: tercera fuente externa comparable, con proveedor/fuente, precio unitario, moneda y URL http(s) o dominio verificable.
 - reference_unit: precio techo, promedio unitario, referencia unitaria o valor unitario base visible en el documento.
 - notes: trazabilidad documental, hoja/pagina/seccion si existe, proveedor documental, dudas, limitaciones de busqueda, comparabilidad de fuentes y etiquetas internacionales cuando apliquen.
 
@@ -387,14 +391,16 @@ Reglas criticas:
 - Usa busqueda web si esta disponible.
 - source_1, source_2 y source_3 son fuentes externas de mercado.
 - Intenta hasta 3 fuentes utiles por item y no te rindas en la primera busqueda.
-- Si la fuente es colombiana, usa este formato: [COLOMBIA] Proveedor | COP valor_unitario | URL o referencia.
-- Si la fuente es internacional, usa este formato: [INTERNACIONAL] Proveedor | USD valor_unitario | Pais | URL o referencia.
+- Las fuentes deben ser distintas; no repitas proveedor, dominio, fabricante ni publicacion.
+- Si la fuente es colombiana, usa este formato: [COLOMBIA] Proveedor | COP valor_unitario | URL_http_o_dominio.
+- Si la fuente es internacional, usa este formato: [INTERNACIONAL] Proveedor | USD valor_unitario | Pais | URL_http_o_dominio.
 - Si usas fuente internacional en USD, agrega en notes: FUENTE_INTERNACIONAL, MONEDA=USD y APP_DEBE_CONVERTIR_TRM_MAS_30.
 - Conserva precios internacionales en USD. No conviertas a COP.
 - No calcules TRM, importacion, nacionalizacion ni ajustes.
 - No uses precio techo, precio referencia, promedio, documento base ni cotizaciones internas como source_1, source_2 o source_3.
 - Si solo encuentras 1 o 2 fuentes defendibles, devuelve esas y deja las otras en N/D.
 - No inventes precios, URLs ni proveedores.
+- Si encuentras precio pero no URL/dominio verificable, deja esa fuente en "N/D" y explica en notes: FUENTE_SIN_TRAZABILIDAD.
 - No hagas calculos financieros; la app los calculara.
 - Conserva item, descripcion, ficha tecnica, cantidad y reference_unit.
 

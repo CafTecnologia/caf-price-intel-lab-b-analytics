@@ -11,8 +11,12 @@ export type MarketSourceUnitPrice = {
 const INTERNAL_REFERENCE_RE =
   /\b(documento\s*base|precio\s*(techo|referencia|estimado)|presupuesto\s*oficial|promedio\s*(del\s*)?documento|cotizaci[oó]n\s*(interna|del\s*documento|proveedor))/i;
 
+function normalizeNumericWhitespace(value: string): string {
+  return value.replace(/(\d)[\s\u00a0]+(?=\d)/g, "$1");
+}
+
 function parseDecimalNumber(candidate: string): number | null {
-  const cleaned = candidate.replace(/[^\d.,]/g, "");
+  const cleaned = normalizeNumericWhitespace(candidate).replace(/[^\d.,]/g, "");
   if (!cleaned) {
     return null;
   }
@@ -39,7 +43,7 @@ function parseDecimalNumber(candidate: string): number | null {
 }
 
 function parseCopNumber(candidate: string): number | null {
-  const cleaned = candidate.replace(/[^\d.,]/g, "");
+  const cleaned = normalizeNumericWhitespace(candidate).replace(/[^\d.,]/g, "");
   if (!cleaned) {
     return null;
   }
@@ -49,18 +53,19 @@ function parseCopNumber(candidate: string): number | null {
 }
 
 function parseUsdValue(source: string): number | null {
+  const normalizedSource = normalizeNumericWhitespace(source);
   const hasInternationalTag = /\[INTERNACIONAL\]/i.test(source);
-  const hasUsdMarker = /\bUSD\b|US\$/i.test(source);
+  const hasUsdMarker = /\bUSD\b|US\$/i.test(normalizedSource);
   if (!hasInternationalTag && !hasUsdMarker) {
     return null;
   }
 
-  const markerBefore = source.match(/(?:\bUSD\b|US\$|\$)\s*[\|:;-]?\s*([0-9][0-9.,]*)/i);
+  const markerBefore = normalizedSource.match(/(?:\bUSD\b|US\$|\$)\s*[\|:;-]?\s*([0-9][0-9.,]*)/i);
   if (markerBefore) {
     return parseDecimalNumber(markerBefore[1] ?? "");
   }
 
-  const markerAfter = source.match(/([0-9][0-9.,]*)\s*[\|:;-]?\s*(?:\bUSD\b|US\$)/i);
+  const markerAfter = normalizedSource.match(/([0-9][0-9.,]*)\s*[\|:;-]?\s*(?:\bUSD\b|US\$)/i);
   if (markerAfter) {
     return parseDecimalNumber(markerAfter[1] ?? "");
   }
@@ -69,11 +74,12 @@ function parseUsdValue(source: string): number | null {
 }
 
 function parseCopValue(source: string): number | null {
-  if (/\bUSD\b|US\$/i.test(source)) {
+  const normalizedSource = normalizeNumericWhitespace(source);
+  if (/\bUSD\b|US\$/i.test(normalizedSource)) {
     return null;
   }
 
-  const markerBeforeMatches = Array.from(source.matchAll(/(?:COP|COL\$|\$)\s*[\|:;-]?\s*([0-9][0-9.,]*)/gi));
+  const markerBeforeMatches = Array.from(normalizedSource.matchAll(/(?:COP|COL\$|\$)\s*[\|:;-]?\s*([0-9][0-9.,]*)/gi));
   const markerCandidates = markerBeforeMatches
     .map((match) => parseCopNumber(match[1] ?? ""))
     .filter((candidate): candidate is number => candidate !== null);
@@ -81,7 +87,7 @@ function parseCopValue(source: string): number | null {
     return markerCandidates[markerCandidates.length - 1] ?? null;
   }
 
-  const markerAfterMatches = Array.from(source.matchAll(/([0-9][0-9.,]*)\s*[\|:;-]?\s*(?:COP|COL\$)/gi));
+  const markerAfterMatches = Array.from(normalizedSource.matchAll(/([0-9][0-9.,]*)\s*[\|:;-]?\s*(?:COP|COL\$)/gi));
   const markerAfterCandidates = markerAfterMatches
     .map((match) => parseCopNumber(match[1] ?? ""))
     .filter((candidate): candidate is number => candidate !== null);
@@ -89,12 +95,12 @@ function parseCopValue(source: string): number | null {
     return markerAfterCandidates[markerAfterCandidates.length - 1] ?? null;
   }
 
-  const trimmed = source.trim();
+  const trimmed = normalizedSource.trim();
   if (/^[\d\s.,]+$/.test(trimmed)) {
     return parseCopNumber(trimmed);
   }
 
-  const thousandsCandidates = (source.match(/\b\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?\b/g) ?? [])
+  const thousandsCandidates = (normalizedSource.match(/\b\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?\b/g) ?? [])
     .map(parseCopNumber)
     .filter((candidate): candidate is number => candidate !== null);
   if (thousandsCandidates.length > 0) {

@@ -50,6 +50,13 @@ function expected(overrides: Record<string, unknown> = {}) {
       item_count: { exact: 1 },
       required_fields: ["item", "description", "quantity", "reference_unit"],
       minimum_field_coverage: { reference_unit: 1 },
+      market_sources: {
+        minimum_priced_source_coverage: 1,
+        minimum_traceable_priced_source_coverage: 1,
+        minimum_distinct_sources_per_row: 3,
+        minimum_distinct_source_row_coverage: 1,
+      },
+      grounding: { required_for_priced_sources: true },
       warnings: { allow: true, max: 5 },
       pipeline: { required: true, allow_stage_failures: false, required_stages: ["final_result"] },
       ...overrides,
@@ -61,12 +68,17 @@ function actual(overrides: Record<string, unknown> = {}) {
   return {
     run: {
       status: "completed",
+      usage: { grounded: true },
+      groundingSources: [{ title: "Proveedor A", uri: "https://proveedor-a.com/item" }],
       result: {
         rows: [
           {
             item: "1",
             description: "Item demo",
             quantity: "2",
+            source_1: "Proveedor A | COP 1000 | https://proveedor-a.com/item",
+            source_2: "Proveedor B | COP 1100 | proveedor-b.com",
+            source_3: "Proveedor C | COP 1200 | proveedor-c.com.co",
             reference_unit: "COP 1200",
           },
         ],
@@ -131,5 +143,41 @@ describe("document analysis runner", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.report.checks.find((check: { name: string }) => check.name === "pipeline_stages")?.passed).toBe(false);
+  });
+
+  it("fails when the same market source is repeated as three sources", () => {
+    const dir = workspace("runner-repeated-sources");
+    const repeatedSource = "Proveedor A | COP 1000 | https://proveedor-a.com/item";
+    const result = runEvaluate(
+      writeJson(dir, "expected.json", expected()),
+      writeJson(
+        dir,
+        "actual.json",
+        actual({
+          run: {
+            status: "completed",
+            usage: { grounded: true },
+            groundingSources: [{ title: "Proveedor A", uri: "https://proveedor-a.com/item" }],
+            result: {
+              rows: [
+                {
+                  item: "1",
+                  description: "Item demo",
+                  quantity: "2",
+                  source_1: repeatedSource,
+                  source_2: "Proveedor A tienda | COP 1000 | proveedor-a.com/item?ref=2",
+                  source_3: "Proveedor A marketplace | COP 1000 | www.proveedor-a.com/item?ref=3",
+                  reference_unit: "COP 1200",
+                },
+              ],
+              warnings: [],
+            },
+          },
+        }),
+      ),
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.report.checks.find((check: { name: string }) => check.name === "fuentes_mercado_distintas")?.passed).toBe(false);
   });
 });

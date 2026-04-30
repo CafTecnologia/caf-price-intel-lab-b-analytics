@@ -75,6 +75,17 @@ describe("market analysis transport mapping", () => {
     expect(parseMarketSourceUnitPrice(row?.[MARKET_ANALYSIS_COLUMNS[6]] ?? "", trm)?.priceCop).toBe(938600);
   });
 
+  it("parses line-broken prices as one unit value instead of truncating them", () => {
+    const trm = 4000;
+
+    expect(parseMarketSourceUnitPrice("Proveedor | COP 1080\n0000 | url", trm)?.priceCop).toBe(10800000);
+    expect(parseMarketSourceUnitPrice("Proveedor | COP 4\n50000 | url", trm)?.priceCop).toBe(450000);
+    expect(parseMarketSourceUnitPrice("Proveedor | 5355\n00 COP | url", trm)?.priceCop).toBe(535500);
+    expect(parseMarketSourceUnitPrice("[INTERNACIONAL] Store | USD 2\n498 | USA | url", trm)?.priceCop).toBe(
+      Math.round(2498 * trm * 1.3),
+    );
+  });
+
   it("builds a concise prompt that separates document reference from market sources", () => {
     const prompt = buildMarketAnalysisPrompt({
       fileName: "demo.xlsx",

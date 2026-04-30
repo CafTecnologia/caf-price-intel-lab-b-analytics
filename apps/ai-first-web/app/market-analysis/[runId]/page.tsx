@@ -7,6 +7,9 @@ import { MarketAnalysisTable } from "../../../components/market-analysis-table";
 import { ProcessTraceLog } from "../../../components/process-trace-log";
 import { TokenUsagePanel } from "../../../components/token-usage-panel";
 import { getMarketAnalysisService } from "../../../lib/market-analysis-service";
+import { isMarketSourcePrice } from "../../../lib/market-source-pricing";
+
+const SOURCE_PRICE_FIELDS = ["Fuente 1 (Precio)", "Fuente 2 (Precio)", "Fuente 3 (Precio)"] as const;
 
 export default async function MarketAnalysisResultPage(props: {
   params: Promise<{ runId: string }>;
@@ -24,6 +27,14 @@ export default async function MarketAnalysisResultPage(props: {
   const stages = service.getRunStages(runId);
   const isFailed = run.status === "failed";
   const needsReview = run.status === "partial_review_required" || run.status === "completed_with_warnings";
+  const hasReportedSourceValues = run.result.rows.some((row) =>
+    SOURCE_PRICE_FIELDS.some((field) => {
+      const value = row[field]?.trim();
+      return Boolean(value && !/^n\/?d$/i.test(value));
+    }),
+  );
+  const hasRecognizedMarketSources = run.result.rows.some((row) => SOURCE_PRICE_FIELDS.some((field) => isMarketSourcePrice(row[field])));
+  const groundingVerified = run.usage?.grounded === true && run.groundingSources.length > 0;
 
   if (run.status === "processing") {
     return (
@@ -53,6 +64,29 @@ export default async function MarketAnalysisResultPage(props: {
           current="matrix"
         />
       </section>
+
+      {needsReview ? (
+        <div className="status-banner status-banner-warning">
+          Esta matriz requiere revision: la app conserva el resultado, pero detecto fallas, fallback o advertencias internas.
+        </div>
+      ) : null}
+      {isFailed ? (
+        <div className="status-banner status-banner-error">
+          El analisis fallo. Revisa el log y reintenta; no se muestra como matriz final.
+        </div>
+      ) : null}
+      {hasReportedSourceValues && !groundingVerified ? (
+        <div className="status-banner status-banner-warning">
+          Fuentes no verificadas por grounding: pueden ser reales, pero Gemini no entrego trazabilidad verificable. Revisa URLs,
+          precios y costos antes de decidir.
+        </div>
+      ) : null}
+      {hasRecognizedMarketSources && !groundingVerified ? (
+        <div className="status-banner status-banner-warning">
+          Los costos fueron calculados con precios reportados por IA sin grounding verificable; el resultado queda como insumo de
+          revision, no como cierre definitivo.
+        </div>
+      ) : null}
 
       {!focusMode ? (
         <section className="panel">
@@ -91,20 +125,9 @@ export default async function MarketAnalysisResultPage(props: {
             </div>
             <div className="metric-card">
               <span className="metric-label">Grounding</span>
-              <strong>{run.usage?.grounded ? "sí" : "no / no reportado"}</strong>
+              <strong>{groundingVerified ? "verificado" : "no verificado"}</strong>
             </div>
           </div>
-
-          {needsReview ? (
-            <div className="status-banner status-banner-warning">
-              Esta matriz requiere revision: la app conserva el resultado, pero detecto fallas, fallback o advertencias internas.
-            </div>
-          ) : null}
-          {isFailed ? (
-            <div className="status-banner status-banner-error">
-              El analisis fallo. Revisa el log y reintenta; no se muestra como matriz final.
-            </div>
-          ) : null}
 
           {!isFailed && run.rowCount > 0 ? (
           <div className="actions-row matrix-actions-row">
@@ -153,7 +176,7 @@ export default async function MarketAnalysisResultPage(props: {
       {!focusMode && run.groundingSources.length > 0 ? (
         <section className="panel">
           <div className="panel-header">
-            <h2>Fuentes reportadas por Gemini</h2>
+            <h2>Fuentes verificadas por grounding</h2>
           </div>
           <ul className="plain-list">
             {run.groundingSources.slice(0, 20).map((source, index) => (

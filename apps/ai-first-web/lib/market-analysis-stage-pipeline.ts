@@ -217,7 +217,7 @@ function geminiBaseUrl(baseUrl: string): string {
 }
 
 function timeoutMsForStage(stageName: StageName): number {
-  if (stageName === "final_result" || stageName === "normalized_items_generation") {
+  if (stageName === "final_result" || stageName === "normalized_items_generation" || stageName === "repair_pass") {
     return 6 * 60_000;
   }
   return 2 * 60_000;
@@ -293,7 +293,7 @@ async function callGeminiStage(input: {
         },
         body: JSON.stringify({
           contents: [{ parts: [{ text: input.prompt }] }],
-          ...(input.allowGrounding ? { tools: [{ google_search: {} }] } : {}),
+          ...(input.allowGrounding ? { tools: [{ googleSearch: {} }] } : {}),
           generationConfig: {
             temperature: 0.2,
             responseMimeType: "application/json",
@@ -334,13 +334,13 @@ function safeDefault<T>(schema: z.ZodType<T>): T {
 function parseStagePayload<T>(rawText: string, schema: z.ZodType<T>, stageName: StageName): T {
   const parsed = normalizeMarketAnalysisTransportPayload(parseJsonFromText(rawText));
   const baseName = baseStageName(stageName);
-  const candidates: unknown[] = [parsed];
+  const candidates: unknown[] = [normalizeStageWarnings(parsed)];
 
   if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
     const record = parsed as Record<string, unknown>;
     for (const key of [stageName, baseName, "result", "data", "output"]) {
       if (record[key] !== undefined) {
-        candidates.push(normalizeMarketAnalysisTransportPayload(record[key]));
+        candidates.push(normalizeStageWarnings(normalizeMarketAnalysisTransportPayload(record[key])));
       }
     }
   }
@@ -369,6 +369,27 @@ function parseStagePayload<T>(rawText: string, schema: z.ZodType<T>, stageName: 
   }
 
   throw lastError;
+}
+
+function normalizeStageWarnings(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+
+  const record = { ...(value as Record<string, unknown>) };
+  if (Array.isArray(record.warnings)) {
+    record.warnings = record.warnings.map((warning) => {
+      if (typeof warning === "string") return warning;
+      if (warning && typeof warning === "object") {
+        const maybeMessage = (warning as { message?: unknown; issue?: unknown; reason?: unknown }).message ??
+          (warning as { message?: unknown; issue?: unknown; reason?: unknown }).issue ??
+          (warning as { message?: unknown; issue?: unknown; reason?: unknown }).reason;
+        if (typeof maybeMessage === "string") return maybeMessage;
+      }
+      return JSON.stringify(warning);
+    });
+  }
+  return record;
 }
 
 async function repairJsonStage<T>(context: StageContext, input: {
@@ -756,9 +777,12 @@ Etapa normalized_items_generation.
 Genera una fila normalizada por cada item visible.
 Tambien busca hasta 3 fuentes externas de mercado comparables por item.
 No calcules costo optimista, moderado, ponderado, total ni margen.
-Cada source_1, source_2 y source_3 debe incluir nombre de fuente/proveedor, precio unitario y moneda.
+Usa Google Search de forma activa para las fuentes externas si la herramienta esta disponible.
+Cada source_1, source_2 y source_3 debe incluir nombre de fuente/proveedor, precio unitario, moneda y URL http(s) o dominio verificable.
+Las tres fuentes deben ser distintas; no repitas proveedor, dominio, fabricante ni publicacion.
 Si es Colombia usa COP. Si es internacional usa etiqueta [INTERNACIONAL] y precio USD cuando aplique.
 No uses el precio techo ni promedios del documento como fuente externa; esos van solo en reference_unit.
+Si encuentras precio pero no URL/dominio verificable, deja esa fuente en "N/D" y explica en notes: FUENTE_SIN_TRAZABILIDAD.
 
 Schema:
 {"rows":[{"item":"","description":"","technical_description":"","quantity":"","fit_analysis":"","source_1":"","source_2":"","source_3":"","reference_unit":"","notes":""}],"warnings":[],"provider_notes":[]}
@@ -776,13 +800,15 @@ ${baseDocumentBlock(context)}
 function promptAudit(context: StageContext, normalized: unknown): string {
   return `
 Etapa audit_pass.
-Audita cobertura, campos vacios, fuentes internas usadas como mercado, reference_unit dudoso y filas omitidas.
+Audita cobertura, campos vacios, fuentes internas usadas como mercado, reference_unit dudoso, fuentes repetidas, fuentes sin URL/dominio y filas omitidas.
 No cambies los datos. Solo reporta issues y si requiere reparacion.
 La etapa normalized_items_generation puede usar fuentes externas de mercado que no aparecen en el documento.
 No marques una fuente externa como alucinada solo porque no esta en el documento base.
 Marca fuente como problema solo si:
 - usa precio techo, presupuesto, promedio o cotizacion interna como mercado externo;
 - no tiene proveedor/tienda y precio unitario;
+- no tiene URL http(s) o dominio verificable;
+- repite la misma fuente, proveedor, dominio, fabricante o publicacion en source_1/source_2/source_3;
 - es tecnicamente incompatible con el item;
 - parece inventada, imposible o sin trazabilidad minima.
 Si hay fuentes externas con proveedor y precio, preservalas salvo problema claro.
@@ -804,8 +830,10 @@ Repara solo los problemas indicados por audit_pass.
 No cambies items correctos.
 No inventes datos.
 Si audit_pass marca fuentes alucinadas o no verificadas, reemplaza source_1/source_2/source_3 con fuentes externas verificables de mercado.
-Cada fuente debe tener proveedor o tienda, precio unitario y moneda. Usa COP para Colombia y [INTERNACIONAL] + USD si es fuente internacional.
-Si no logras una fuente defendible para un item, deja esa fuente en "" y explica la razon en notes.
+Usa Google Search de forma activa si la herramienta esta disponible.
+Cada fuente debe tener proveedor o tienda, precio unitario, moneda y URL http(s) o dominio verificable. Usa COP para Colombia y [INTERNACIONAL] + USD si es fuente internacional.
+Las fuentes deben ser distintas; no repitas proveedor, dominio, fabricante ni publicacion.
+Si no logras una fuente defendible para un item, deja esa fuente en "N/D" y explica la razon en notes.
 No uses cotizaciones internas del documento como fuentes externas; esas sirven como contexto documental, no como mercado.
 Devuelve filas con las mismas 10 claves compactas.
 
@@ -819,7 +847,7 @@ audit_pass:
 ${JSON.stringify(audit, null, 2)}
 
 Contexto documental:
-${compactContextBlock(context)}
+${baseDocumentBlock(context)}
 `.trim();
 }
 
@@ -835,12 +863,14 @@ Busca fuentes externas comparables hasta llegar a 3 por item cuando sea posible.
 Completa technical_description con la ficha reconstruida o una descripcion tecnica breve basada en el documento.
 Completa fit_analysis con una lectura comercial breve y util del item.
 Completa notes con observaciones de fuente, dudas o razon por la cual no fue posible completar algun dato.
-Cada source debe tener proveedor o tienda, precio unitario y moneda.
+Usa Google Search de forma activa si la herramienta esta disponible.
+Cada source debe tener proveedor o tienda, precio unitario, moneda y URL http(s) o dominio verificable.
+Las fuentes deben ser distintas; no repitas proveedor, dominio, fabricante ni publicacion.
 Formatos aceptados:
-- Proveedor | 103966 COP
-- Proveedor | 103966 | COP
-- [INTERNACIONAL] Proveedor | 35 USD
-Si no consigues una fuente defendible, deja el campo en "" y explica en notes por que falta.
+- Proveedor | 103966 COP | https://proveedor.com/producto
+- Proveedor | 103966 | COP | proveedor.com
+- [INTERNACIONAL] Proveedor | 35 USD | Pais | https://proveedor.com/producto
+Si no consigues una fuente defendible con URL/dominio, deja el campo en "N/D" y explica en notes por que falta.
 No uses precio techo, presupuesto, promedio o cotizaciones internas del documento como fuente externa.
 
 Schema:
@@ -852,7 +882,7 @@ ${JSON.stringify({ rows }, null, 2)}
 audit_pass:
 ${JSON.stringify(audit, null, 2)}
 
-${compactContextBlock(context)}
+${baseDocumentBlock(context)}
 `.trim();
 }
 
@@ -1034,7 +1064,15 @@ export async function runStagedMarketAnalysisPipeline(context: StageContext): Pr
         ),
       };
     } else {
-      stageErrors.push(`repair_pass:quality_gap: ${sourceGapRepair.error ?? "sin filas reparadas"}`);
+      finalTransport = {
+        ...finalTransport,
+        warnings: Array.from(
+          new Set([
+            ...finalTransport.warnings,
+            `QUALITY_GAP_REPAIR_NOT_APPLIED: ${sourceGapRepair.error ?? "sin filas reparadas"}`,
+          ]),
+        ),
+      };
     }
   }
   const result = normalizeMarketAnalysisTransportResult(finalTransport);

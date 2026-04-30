@@ -62,6 +62,16 @@ function unwrapStatus(actual) {
   return actual?.status ?? actual?.run?.status ?? null;
 }
 
+function unwrapUsage(actual) {
+  return actual?.usage ?? actual?.run?.usage ?? null;
+}
+
+function unwrapGroundingSources(actual) {
+  if (Array.isArray(actual?.groundingSources)) return actual.groundingSources;
+  if (Array.isArray(actual?.run?.groundingSources)) return actual.run.groundingSources;
+  return [];
+}
+
 function pick(row, key) {
   const aliases = {
     item: ["item", "Ítem"],
@@ -86,6 +96,42 @@ function isMoneyLike(value) {
   if (!normalized || /^n\/?d$/i.test(normalized)) return false;
   if (/^(und|unidad|un|kg|ml|lt|m|cm|caja|paquete)$/i.test(normalized)) return false;
   return /(?:cop|usd|\$|[0-9][0-9.,]*\s*(?:cop|usd)?)/i.test(normalized) && /\d/.test(normalized);
+}
+
+function hasTraceableSourceLocation(value) {
+  return /https?:\/\/|www\.|(?:^|[\s|])[\w-]+(?:\.[\w-]+)+(?:\/|\s|$)/i.test(String(value ?? ""));
+}
+
+function sourceIdentity(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized || /^n\/?d$/i.test(normalized)) return "";
+
+  const urlMatch = normalized.match(/(?:https?:\/\/|www\.)[^\s|,;]+|(?:^|[\s|])([\w-]+\.)+[\w-]+(?:\/[^\s|,;]*)?/i);
+  if (urlMatch) {
+    const rawLocation = urlMatch[0].trim();
+    const location = rawLocation.startsWith("http") ? rawLocation : `https://${rawLocation.replace(/^www\./, "")}`;
+    try {
+      return new URL(location).hostname.replace(/^www\./, "");
+    } catch {
+      return rawLocation.replace(/^www\./, "").replace(/\/.*$/, "");
+    }
+  }
+
+  return normalized
+    .replace(/\b(?:cop|usd)\b/gi, " ")
+    .replace(/\$?\s*\d[\d.,]*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isIncompleteWarning(value) {
+  return /incomplete_run|filas?\s+faltantes|items?\s+faltantes|ítems?\s+faltantes|solo\s+se\s+generaron|no\s+se\s+generaron|no\s+se\s+pueden\s+inventar/i.test(
+    String(value ?? ""),
+  );
+}
+
+function sourceValues(row) {
+  return ["source_1", "source_2", "source_3"].map((field) => pick(row, field));
 }
 
 function ratio(count, total) {
@@ -120,6 +166,8 @@ function evaluate(expected, actual) {
   const warnings = unwrapWarnings(actual);
   const stages = unwrapStages(actual);
   const actualStatus = unwrapStatus(actual);
+  const usage = unwrapUsage(actual);
+  const groundingSources = unwrapGroundingSources(actual);
   const expectedConfig = expected.expected ?? expected;
   const requiredFields = expectedConfig.required_fields ?? [];
   const checks = [];
@@ -200,6 +248,93 @@ function evaluate(expected, actual) {
     }
   }
   checks.push(scoreBoolean("expected_items", itemFailures.length === 0, { failures: itemFailures }));
+
+  const statusPolicy = expectedConfig.status ?? {};
+  const allowedStatuses = statusPolicy.allowed ?? ["completed"];
+  checks.push(
+    scoreBoolean("final_status", allowedStatuses.includes(actualStatus), {
+      actual_status: actualStatus,
+      allowed_statuses: allowedStatuses,
+    }),
+  );
+
+  const allSourceValues = rows.flatMap(sourceValues).filter((value) => value && !/^n\/?d$/i.test(value));
+  const pricedSourceValues = allSourceValues.filter(isMoneyLike);
+  const traceablePricedSources = pricedSourceValues.filter(hasTraceableSourceLocation);
+  const sourcePolicy = expectedConfig.market_sources ?? {};
+  const minimumPricedSourceCoverage = Number(sourcePolicy.minimum_priced_source_coverage ?? 0.5);
+  const minimumTraceablePricedSourceCoverage = Number(sourcePolicy.minimum_traceable_priced_source_coverage ?? 0.5);
+  const pricedSourceCoverage = rows.length === 0 ? 0 : pricedSourceValues.length / (rows.length * 3);
+  const traceablePricedSourceCoverage = pricedSourceValues.length === 0 ? 0 : traceablePricedSources.length / pricedSourceValues.length;
+  checks.push({
+    name: "fuentes_mercado_con_precio",
+    passed: pricedSourceCoverage >= minimumPricedSourceCoverage,
+    score: pricedSourceCoverage,
+    actual: pricedSourceValues.length,
+    total_possible: rows.length * 3,
+    minimum: minimumPricedSourceCoverage,
+  });
+  checks.push({
+    name: "fuentes_mercado_trazables",
+    passed: traceablePricedSourceCoverage >= minimumTraceablePricedSourceCoverage,
+    score: traceablePricedSourceCoverage,
+    actual: traceablePricedSources.length,
+    priced_sources: pricedSourceValues.length,
+    minimum: minimumTraceablePricedSourceCoverage,
+  });
+
+  const minimumDistinctSourcesPerRow = Number(sourcePolicy.minimum_distinct_sources_per_row ?? 0);
+  if (minimumDistinctSourcesPerRow > 0) {
+    const minimumDistinctSourceRowCoverage = Number(sourcePolicy.minimum_distinct_source_row_coverage ?? 1);
+    const deficientRows = [];
+    let rowsWithEnoughDistinctSources = 0;
+    for (const [rowIndex, row] of rows.entries()) {
+      const identities = sourceValues(row).map(sourceIdentity).filter(Boolean);
+      const distinctIdentities = Array.from(new Set(identities));
+      if (distinctIdentities.length >= minimumDistinctSourcesPerRow) {
+        rowsWithEnoughDistinctSources += 1;
+      } else {
+        deficientRows.push({
+          row: rowIndex + 1,
+          item: pick(row, "item"),
+          distinct_sources: distinctIdentities.length,
+          sources: sourceValues(row).filter(Boolean),
+        });
+      }
+    }
+    const coverage = ratio(rowsWithEnoughDistinctSources, rows.length);
+    checks.push({
+      name: "fuentes_mercado_distintas",
+      passed: coverage >= minimumDistinctSourceRowCoverage,
+      score: coverage,
+      rows_with_enough_distinct_sources: rowsWithEnoughDistinctSources,
+      total: rows.length,
+      minimum_distinct_sources_per_row: minimumDistinctSourcesPerRow,
+      minimum: minimumDistinctSourceRowCoverage,
+      deficient_rows: deficientRows.slice(0, 20),
+    });
+  }
+
+  const groundingPolicy = expectedConfig.grounding ?? {};
+  const requireGroundingForSources = groundingPolicy.required_for_priced_sources !== false;
+  const allowTraceableSourcesWithoutGrounding = groundingPolicy.allow_traceable_sources_without_grounding === true;
+  const groundingVerified = usage?.grounded === true && groundingSources.length > 0;
+  checks.push(
+    scoreBoolean("grounding_verificable", !requireGroundingForSources || pricedSourceValues.length === 0 || groundingVerified || (allowTraceableSourcesWithoutGrounding && traceablePricedSourceCoverage >= minimumTraceablePricedSourceCoverage), {
+      usage_grounded: usage?.grounded ?? null,
+      grounding_sources: groundingSources.length,
+      priced_sources: pricedSourceValues.length,
+      traceable_priced_source_coverage: traceablePricedSourceCoverage,
+      allow_traceable_sources_without_grounding: allowTraceableSourcesWithoutGrounding,
+    }),
+  );
+
+  const incompleteWarnings = warnings.filter(isIncompleteWarning);
+  checks.push(
+    scoreBoolean("sin_advertencia_de_cobertura_incompleta", incompleteWarnings.length === 0, {
+      warnings: incompleteWarnings.slice(0, 10),
+    }),
+  );
 
   const itemIds = rows.map((row) => pick(row, "item")).filter(Boolean);
   const duplicateItems = itemIds.filter((item, index) => itemIds.indexOf(item) !== index);
