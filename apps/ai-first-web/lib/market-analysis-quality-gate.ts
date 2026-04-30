@@ -79,10 +79,24 @@ export function getUnresolvedFailedStages(stages: MarketAnalysisStageTrace[]) {
   }
 
   const directTextCompleted = latestTerminalByName.get("ia_direct_text_generate")?.status === "completed";
+  const fallbackFullRunCompleted =
+    latestTerminalByName.get("legacy_full_run_after_direct_file")?.status === "completed" ||
+    latestTerminalByName.get("legacy_full_run_after_staged_pipeline")?.status === "completed";
+  const stagedPipelineStageNames = new Set([
+    "document_map",
+    "extraction_plan",
+    "official_price_table_extraction",
+    "technical_specs_extraction_batches",
+    "normalized_items_generation",
+    "audit_pass",
+    "repair_pass",
+    "final_result",
+  ]);
 
   return Array.from(latestTerminalByName.values())
     .filter((stage) => stage.status === "failed")
     .filter((stage) => !(stage.stage_name === "ia_direct_file_generate" && directTextCompleted))
+    .filter((stage) => !(fallbackFullRunCompleted && stagedPipelineStageNames.has(stage.stage_name)))
     .map((stage) => ({
       stageName: stage.stage_name,
       errorMessage: stage.error_message,
@@ -120,6 +134,7 @@ export function evaluateMarketAnalysisRunQuality(input: QualityGateInput): Quali
   const hasIncompleteResultWarning = input.result.warnings.some(isIncompleteResultWarning);
   const hasMissingTrace = input.stages.length === 0;
   const hasInternalFallbackWarning = input.result.warnings.some((warning) => INTERNAL_FALLBACK_PATTERN.test(warning));
+  const hasProviderOrAppWarnings = input.result.warnings.length > 0;
 
   if (hasMissingTrace) {
     warnings.push("QUALITY_GATE_TRACE_MISSING: la corrida no tiene trazas de pipeline verificables.");
@@ -177,7 +192,6 @@ export function evaluateMarketAnalysisRunQuality(input: QualityGateInput): Quali
     hasMissingTrace ||
     requiredFailures.length > 0 ||
     finishReason === "partial" ||
-    hasInternalFallbackWarning ||
     noSourceRatio > 0.2 ||
     weakSourceRatio > 0.5 ||
     untraceableSourceRatio > 0.5 ||
@@ -190,7 +204,7 @@ export function evaluateMarketAnalysisRunQuality(input: QualityGateInput): Quali
     };
   }
 
-  if (optionalFailures.length > 0 || warnings.length > 0) {
+  if (optionalFailures.length > 0 || warnings.length > 0 || hasProviderOrAppWarnings) {
     return {
       status: "completed_with_warnings",
       warnings,

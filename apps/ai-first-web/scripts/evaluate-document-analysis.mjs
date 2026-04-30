@@ -336,11 +336,20 @@ function evaluate(expected, actual) {
     }),
   );
 
-  const itemIds = rows.map((row) => pick(row, "item")).filter(Boolean);
-  const duplicateItems = itemIds.filter((item, index) => itemIds.indexOf(item) !== index);
+  const itemFingerprints = rows
+    .map((row) => {
+      const item = pick(row, "item");
+      const description = sourceIdentity(pick(row, "description")) || String(pick(row, "description")).trim().toLowerCase();
+      const quantity = String(pick(row, "quantity")).trim().toLowerCase();
+      return item ? `${item}|${description}|${quantity}` : "";
+    })
+    .filter(Boolean);
+  const duplicateItems = itemFingerprints.filter((item, index) => itemFingerprints.indexOf(item) !== index);
   checks.push(
     scoreBoolean("items_duplicados", duplicateItems.length === 0, {
-      duplicates: Array.from(new Set(duplicateItems)).slice(0, 20),
+      duplicates: Array.from(new Set(duplicateItems))
+        .map((item) => item.split("|")[0])
+        .slice(0, 20),
     }),
   );
 

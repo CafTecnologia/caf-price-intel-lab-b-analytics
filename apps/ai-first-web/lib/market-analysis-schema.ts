@@ -111,6 +111,13 @@ export function normalizeMarketAnalysisRow(input: Partial<Record<MarketAnalysisC
       "impresoras",
       "scanner",
       "switch",
+      "colombia",
+      "alambre",
+      "rigido",
+      "plafon",
+      "cinta",
+      "ferreteria",
+      "suministros",
     ];
 
     return domainWords.reduce(
@@ -127,8 +134,20 @@ export function normalizeMarketAnalysisRow(input: Partial<Record<MarketAnalysisC
     }
 
     const normalized = String(value)
+          .replace(/(\d)[\s\u00a0]+([.,])[\s\u00a0]*(?=\d)/g, "$1$2")
+          .replace(/(\d[.,])[\s\u00a0]+(?=\d)/g, "$1")
           .replace(/(\d)[\s\u00a0]+(?=\d)/g, "$1")
+          .replace(/\[\s*(COLOMBIA|INTERNACIONAL|USA|EEUU)\s*\]/gi, (_match, tag: string) => `[${tag.toUpperCase()}]`)
+          .replace(/\[\s*COL\s+OMBIA\s*\]/gi, "[COLOMBIA]")
+          .replace(/\[\s*COLOMB\s*IA\s*\]/gi, "[COLOMBIA]")
+          .replace(/https?\s*:\s*\/\s*\//gi, (match) => match.toLowerCase().startsWith("https") ? "https://" : "http://")
+          .replace(/(https?:\/\/www)\s+\./gi, "$1.")
+          .replace(/(https?:\/\/[^\s|,;]+)\s+([a-z0-9-]+\.)/gi, "$1$2")
+          .replace(/(https?:\/\/[^\s|,;]+)\s+([a-z0-9-]+\.)/gi, "$1$2")
+          .replace(/([a-z0-9])\s+\.\s+(?=[a-z]{2,}\b)/gi, "$1.")
+          .replace(/([a-z0-9])\.\s+(?=[a-z]{2,}\b)/gi, "$1.")
           .replace(/(https?:\/\/)\s+/gi, "$1")
+          .replace(/\bN\s+°/gi, "N°")
           .replace(/_\s+/g, "_")
           .replace(/[ \t]*\r?\n[ \t]*/g, " ")
           .replace(/\s{2,}/g, " ")

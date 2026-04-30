@@ -257,9 +257,15 @@ function parseCopMoney(value: string): number | null {
     return null;
   }
 
-  const normalizedValue = value.replace(/(\d)[\s\u00a0]+(?=\d)/g, "$1");
+  const normalizeNumericWhitespace = (input: string) =>
+    input
+      .replace(/(\d)[\s\u00a0]+([.,])[\s\u00a0]*(?=\d)/g, "$1$2")
+      .replace(/(\d[.,])[\s\u00a0]+(?=\d)/g, "$1")
+      .replace(/(\d)[\s\u00a0]+(?=\d)/g, "$1");
+
+  const normalizedValue = normalizeNumericWhitespace(value);
   const parseToken = (candidate: string): number | null => {
-    const cleaned = candidate.replace(/(\d)[\s\u00a0]+(?=\d)/g, "$1").replace(/[^\d.,]/g, "");
+    const cleaned = normalizeNumericWhitespace(candidate).replace(/[^\d.,]/g, "");
     if (!cleaned) {
       return null;
     }

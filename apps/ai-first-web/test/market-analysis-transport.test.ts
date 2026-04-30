@@ -81,6 +81,8 @@ describe("market analysis transport mapping", () => {
     expect(parseMarketSourceUnitPrice("Proveedor | COP 1080\n0000 | url", trm)?.priceCop).toBe(10800000);
     expect(parseMarketSourceUnitPrice("Proveedor | COP 4\n50000 | url", trm)?.priceCop).toBe(450000);
     expect(parseMarketSourceUnitPrice("Proveedor | 5355\n00 COP | url", trm)?.priceCop).toBe(535500);
+    expect(parseMarketSourceUnitPrice("Proveedor | COP 2. 150 | url", trm)?.priceCop).toBe(2150);
+    expect(parseMarketSourceUnitPrice("Proveedor | COP 29 .450 | url", trm)?.priceCop).toBe(29450);
     expect(parseMarketSourceUnitPrice("[INTERNACIONAL] Store | USD 2\n498 | USA | url", trm)?.priceCop).toBe(
       Math.round(2498 * trm * 1.3),
     );
@@ -113,6 +115,36 @@ describe("market analysis transport mapping", () => {
     expect(row?.["Fuente 1 (Precio)"]).toContain("COP 900000");
     expect(row?.["Fuente 2 (Precio)"]).toContain("https://salescloud.com.co");
     expect(row?.["Resumen de Fuentes y Observaciones"]).toContain("DOCUMENTO_BASE_CON_PRECIO_TECHO");
+  });
+
+  it("repairs transport spaces in urls, country tags, and thousands punctuation", () => {
+    const transport = MarketAnalysisTransportResultSchema.parse({
+      rows: [
+        {
+          item: "1",
+          description: "Cable",
+          technical_description: "Cable eléctrico",
+          quantity: "1 UN",
+          fit_analysis: "Ficha abierta",
+          source_1: "[COL OMBIA] Tienda | COP 2. 150 | https ://www .homecenter.com. co",
+          source_2: "[COLOMB IA] Tienda B | COP 29 .450 | https://el clavo.com. co",
+          source_3: "[INTERNACIONAL] Amazon | USD 48.00 | USA | https ://amazon.com",
+          reference_unit: "4 .200",
+          notes: "OK",
+        },
+      ],
+      warnings: [],
+      provider_notes: [],
+    });
+
+    const row = normalizeMarketAnalysisTransportResult(transport).rows[0];
+
+    expect(row?.["Fuente 1 (Precio)"]).toContain("[COLOMBIA]");
+    expect(row?.["Fuente 1 (Precio)"]).toContain("COP 2.150");
+    expect(row?.["Fuente 1 (Precio)"]).toContain("https://www.homecenter.com.co");
+    expect(row?.["Fuente 2 (Precio)"]).toContain("COP 29.450");
+    expect(row?.["Fuente 2 (Precio)"]).toContain("https://elclavo.com.co");
+    expect(row?.["PRECIO REFERENCIA (TECHO) UNIT"]).toBe("4.200");
   });
 
   it("builds a concise prompt that separates document reference from market sources", () => {

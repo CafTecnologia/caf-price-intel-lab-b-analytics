@@ -107,6 +107,18 @@ describe("market analysis quality gate", () => {
     expect(statusFor(stages)).toBe("completed");
   });
 
+  it("does not treat failed staged attempt as unresolved when full fallback completed", () => {
+    const stages = [
+      stage("ia_direct_file_generate", "failed", 0),
+      stage("ia_direct_text_generate", "completed", 1),
+      stage("document_map", "failed", 2),
+      stage("legacy_full_run_after_direct_file", "completed", 3),
+    ];
+
+    expect(getUnresolvedFailedStages(stages)).toHaveLength(0);
+    expect(statusFor(stages)).toBe("completed");
+  });
+
   it("degrades optional quality repairs to completed_with_warnings", () => {
     expect(statusFor([stage("repair_pass:quality_gap", "failed")])).toBe("completed_with_warnings");
   });
@@ -163,7 +175,7 @@ describe("market analysis quality gate", () => {
     expect(gate.warnings.some((warning) => warning.includes("QUALITY_GATE_TRACE_MISSING"))).toBe(true);
   });
 
-  it("requires manual review when an internal fallback warning is present", () => {
+  it("keeps internal fallback warning visible without forcing partial status", () => {
     const fallbackResult = result();
     fallbackResult.warnings = ["STAGED_PIPELINE_FALLBACK: se uso pipeline legacy"];
 
@@ -173,8 +185,21 @@ describe("market analysis quality gate", () => {
       stages: [stage("final_result", "completed")],
     });
 
-    expect(gate.status).toBe("partial_review_required");
+    expect(gate.status).toBe("completed_with_warnings");
     expect(gate.warnings.some((warning) => warning.includes("QUALITY_GATE_INTERNAL_FALLBACK"))).toBe(true);
+  });
+
+  it("marks provider/app warnings as completed_with_warnings instead of clean completed", () => {
+    const warned = result();
+    warned.warnings = ["FALLBACK_MODELO_IA: se uso modelo alterno."];
+
+    const gate = evaluateMarketAnalysisRunQuality({
+      result: warned,
+      usage: { finishReason: "STOP", grounded: true, groundingSources: [{ uri: "https://example.com" }] },
+      stages: [stage("final_result", "completed")],
+    });
+
+    expect(gate.status).toBe("completed_with_warnings");
   });
 
   it("requires manual review when IA reports incomplete item coverage", () => {

@@ -12,7 +12,10 @@ const INTERNAL_REFERENCE_RE =
   /\b(documento\s*base|precio\s*(techo|referencia|estimado)|presupuesto\s*oficial|promedio\s*(del\s*)?documento|cotizaci[oó]n\s*(interna|del\s*documento|proveedor))/i;
 
 function normalizeNumericWhitespace(value: string): string {
-  return value.replace(/(\d)[\s\u00a0]+(?=\d)/g, "$1");
+  return value
+    .replace(/(\d)[\s\u00a0]+([.,])[\s\u00a0]*(?=\d)/g, "$1$2")
+    .replace(/(\d[.,])[\s\u00a0]+(?=\d)/g, "$1")
+    .replace(/(\d)[\s\u00a0]+(?=\d)/g, "$1");
 }
 
 function parseDecimalNumber(candidate: string): number | null {
