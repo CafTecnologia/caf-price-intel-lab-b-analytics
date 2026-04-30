@@ -293,7 +293,7 @@ async function callGeminiStage(input: {
         },
         body: JSON.stringify({
           contents: [{ parts: [{ text: input.prompt }] }],
-          ...(input.allowGrounding ? { tools: [{ googleSearch: {} }] } : {}),
+          ...(input.allowGrounding ? { tools: [{ google_search: {} }] } : {}),
           generationConfig: {
             temperature: 0.2,
             responseMimeType: "application/json",
