@@ -169,7 +169,7 @@ export function MarketAnalysisUploadForm(props: {
         body: formData,
         signal: controller.signal,
       });
-      const payload = (await response.json().catch(() => null)) as { runId?: string; error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as { runId?: string; status?: string; error?: string } | null;
 
       if (!response.ok) {
         if (payload?.runId) {
@@ -191,12 +191,9 @@ export function MarketAnalysisUploadForm(props: {
       }
 
       setElapsedMs(Date.now() - submitStartedAt);
-      setProgressStatus("completed");
-      window.setTimeout(() => {
-        startTransition(() => {
-          router.push(`/market-analysis/${payload.runId}`);
-        });
-      }, 900);
+      startTransition(() => {
+        router.push(`/market-analysis/${payload.runId}`);
+      });
     } catch (submissionError) {
       setError(
         submissionError instanceof DOMException && submissionError.name === "AbortError"

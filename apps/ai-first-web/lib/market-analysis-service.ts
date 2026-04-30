@@ -37,6 +37,7 @@ import { getOfficialTrmSnapshot, type TrmSnapshot } from "./trm-service";
 
 const require = createRequire(import.meta.url);
 const XLSX = require("xlsx") as typeof import("xlsx");
+const activeMarketAnalysisJobs = new Map<string, Promise<MarketAnalysisRun>>();
 
 function projectRoot(): string {
   const cwd = process.cwd();
@@ -740,7 +741,7 @@ export class MarketAnalysisService {
     private readonly uploadsDirectory = uploadsRoot(),
   ) {}
 
-  async processUpload(request: {
+  async startUpload(request: {
     fileName: string;
     mimeType: string;
     bytes: Buffer;
@@ -748,6 +749,84 @@ export class MarketAnalysisService {
     odooProjectName?: string | null;
   }): Promise<MarketAnalysisRun> {
     const runId = randomUUID();
+    const fileType = normalizeFileType(request.fileName, request.mimeType);
+    const uploadDirectory = resolve(this.uploadsDirectory, runId);
+    await mkdir(uploadDirectory, { recursive: true });
+    const uploadedFilePath = resolve(uploadDirectory, request.fileName);
+    await writeFile(uploadedFilePath, request.bytes);
+
+    const startedAt = toIsoNow();
+    const uploadStageStartedAt = startMarketAnalysisStage({
+      runId,
+      documentName: request.fileName,
+      stageName: "upload_local",
+      model: null,
+    });
+    finishMarketAnalysisStage({
+      runId,
+      documentName: request.fileName,
+      stageName: "upload_local",
+      startedAt: uploadStageStartedAt,
+      parsedJson: {
+        uploadedFilePath,
+        fileType,
+        sizeBytes: request.bytes.length,
+        sha256: buildChecksum(request.bytes),
+      },
+      status: "completed",
+      model: null,
+    });
+
+    const providerConnection = getActiveProviderConnectionForServer();
+    const processingRun = this.store.save({
+      runId,
+      odooProjectId: request.odooProjectId ?? null,
+      odooProjectName: request.odooProjectName?.trim() || null,
+      fileName: request.fileName,
+      fileType,
+      status: "processing",
+      createdAt: startedAt,
+      updatedAt: startedAt,
+      provider: providerConnection.provider,
+      model: providerConnection.model,
+      promptVersion: MARKET_ANALYSIS_PROMPT_VERSION,
+      rowCount: 0,
+      uploadedFilePath,
+      sourceSummary: `Archivo recibido. Procesamiento IA en curso.\nSHA256: ${buildChecksum(request.bytes)}`,
+      result: {
+        rows: [],
+        warnings: ["PROCESSING_STARTED: el analisis fue recibido y sigue en ejecucion."],
+        provider_notes: [],
+      },
+      groundingSources: [],
+      usage: null,
+      errorMessage: null,
+    });
+
+    const job = this.processUpload({ ...request, runId })
+      .catch((error) => {
+        if (error && typeof error === "object" && "runId" in error) {
+          return this.store.get(runId) ?? processingRun;
+        }
+        throw error;
+      })
+      .finally(() => {
+        activeMarketAnalysisJobs.delete(runId);
+      });
+    activeMarketAnalysisJobs.set(runId, job);
+
+    return processingRun;
+  }
+
+  async processUpload(request: {
+    runId?: string;
+    fileName: string;
+    mimeType: string;
+    bytes: Buffer;
+    odooProjectId?: number | null;
+    odooProjectName?: string | null;
+  }): Promise<MarketAnalysisRun> {
+    const runId = request.runId ?? randomUUID();
     const fileType = normalizeFileType(request.fileName, request.mimeType);
     const uploadDirectory = resolve(this.uploadsDirectory, runId);
     await mkdir(uploadDirectory, { recursive: true });

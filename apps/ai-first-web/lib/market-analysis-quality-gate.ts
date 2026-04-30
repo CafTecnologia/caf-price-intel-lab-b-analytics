@@ -2,6 +2,7 @@ import type { MarketAnalysisResult } from "./market-analysis-schema";
 import type { MarketAnalysisStageTrace } from "./market-analysis-trace";
 
 export const MARKET_ANALYSIS_RUN_STATUSES = [
+  "processing",
   "completed",
   "completed_with_warnings",
   "partial_review_required",

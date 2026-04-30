@@ -236,6 +236,15 @@ textarea {
   border-color: rgba(155, 45, 45, 0.22);
 }
 
+.processing-workspace {
+  display: grid;
+  gap: 1rem;
+}
+
+.processing-trace-log {
+  margin-bottom: 0;
+}
+
 .processing-donut {
   --progress: 0%;
   width: 5.4rem;
@@ -468,6 +477,7 @@ textarea {
   background: rgba(37, 97, 60, 0.12);
 }
 
+.status-processing,
 .status-completed_with_warnings,
 .status-partial_review_required,
 .status-retry,
@@ -484,6 +494,24 @@ textarea {
 
 .success-text {
   color: var(--success);
+}
+
+.status-banner {
+  border: 1px solid var(--line);
+  border-radius: 0.95rem;
+  padding: 0.85rem 1rem;
+  margin-top: 1rem;
+  font-weight: 700;
+}
+
+.status-banner-warning {
+  color: var(--warning);
+  background: rgba(140, 76, 17, 0.08);
+}
+
+.status-banner-error {
+  color: var(--danger);
+  background: rgba(155, 45, 45, 0.08);
 }
 
 .primary-button,

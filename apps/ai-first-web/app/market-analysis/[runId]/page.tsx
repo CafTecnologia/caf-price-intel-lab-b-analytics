@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { MarketAnalysisProcessingPanel } from "../../../components/market-analysis-processing-panel";
 import { MarketAnalysisTabs } from "../../../components/market-analysis-tabs";
 import { MarketAnalysisTable } from "../../../components/market-analysis-table";
 import { ProcessTraceLog } from "../../../components/process-trace-log";
@@ -13,11 +14,32 @@ export default async function MarketAnalysisResultPage(props: {
 }) {
   const { runId } = await props.params;
   const { focus } = await props.searchParams;
-  const run = getMarketAnalysisService().getRun(runId);
+  const service = getMarketAnalysisService();
+  const run = service.getRun(runId);
   const focusMode = focus === "table";
 
   if (!run) {
     notFound();
+  }
+  const stages = service.getRunStages(runId);
+  const isFailed = run.status === "failed";
+  const needsReview = run.status === "partial_review_required" || run.status === "completed_with_warnings";
+
+  if (run.status === "processing") {
+    return (
+      <div className="stack">
+        <section className="panel workspace-hero workspace-hero-compact">
+          <MarketAnalysisTabs
+            runId={runId}
+            projectCode={run.projectCode}
+            fileName={run.fileName}
+            status={run.status}
+            current="matrix"
+          />
+        </section>
+        <MarketAnalysisProcessingPanel runId={runId} initialStartedAt={run.createdAt} />
+      </div>
+    );
   }
 
   return (
@@ -73,6 +95,18 @@ export default async function MarketAnalysisResultPage(props: {
             </div>
           </div>
 
+          {needsReview ? (
+            <div className="status-banner status-banner-warning">
+              Esta matriz requiere revision: la app conserva el resultado, pero detecto fallas, fallback o advertencias internas.
+            </div>
+          ) : null}
+          {isFailed ? (
+            <div className="status-banner status-banner-error">
+              El analisis fallo. Revisa el log y reintenta; no se muestra como matriz final.
+            </div>
+          ) : null}
+
+          {!isFailed && run.rowCount > 0 ? (
           <div className="actions-row matrix-actions-row">
             <a href={`/api/market-analysis/${runId}/export?format=xlsx`} className="primary-button link-button">
               Descargar XLSX
@@ -84,6 +118,7 @@ export default async function MarketAnalysisResultPage(props: {
               Descargar JSON
             </a>
           </div>
+          ) : null}
         </section>
       ) : (
         <section className="panel subtle">
@@ -135,12 +170,20 @@ export default async function MarketAnalysisResultPage(props: {
       <section className={`panel table-stage ${focusMode ? "table-stage-focus" : ""}`}>
         <div className="panel-header">
           <div>
-            <h2>Matriz final</h2>
-            <p className="muted small">Una fila por ítem, 15 columnas fijas, lista para Excel.</p>
+            <h2>{isFailed ? "Analisis fallido" : needsReview ? "Matriz parcial: requiere revision" : "Matriz final"}</h2>
+            <p className="muted small">
+              {isFailed
+                ? "La corrida no produjo una matriz util."
+                : needsReview
+                  ? "Resultado disponible con advertencias visibles en el log."
+                  : "Una fila por item, columnas fijas, lista para Excel."}
+            </p>
           </div>
         </div>
-        {!focusMode ? <ProcessTraceLog run={run} /> : null}
-        <MarketAnalysisTable run={run} openInNewTabHref={!focusMode ? `/market-analysis/${runId}?focus=table` : undefined} />
+        {!focusMode ? <ProcessTraceLog run={run} stages={stages} /> : null}
+        {!isFailed ? (
+          <MarketAnalysisTable run={run} openInNewTabHref={!focusMode ? `/market-analysis/${runId}?focus=table` : undefined} />
+        ) : null}
       </section>
     </div>
   );

@@ -45,7 +45,11 @@ export function RecentMarketAnalyses(props: {
       </div>
       <div className="stack">
         {runs.map((run) => (
-          <Link key={run.runId} href={`/market-analysis/${run.runId}/financial`} className="run-card">
+          <Link
+            key={run.runId}
+            href={run.status === "completed" ? `/market-analysis/${run.runId}/financial` : `/market-analysis/${run.runId}`}
+            className="run-card"
+          >
             <div>
               <div className="eyebrow">{run.odooProjectName ? "Proyecto Odoo" : `Proyecto ${run.projectCode}`}</div>
               <strong>{run.odooProjectName ?? run.fileName}</strong>

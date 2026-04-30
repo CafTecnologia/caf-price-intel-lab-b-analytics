@@ -1,4 +1,5 @@
 import type { MarketAnalysisRun } from "@web/lib/market-analysis-store";
+import type { MarketAnalysisStageTrace } from "@web/lib/market-analysis-trace";
 
 function formatDuration(ms: number | null | undefined): string {
   if (!ms || ms < 0) {
@@ -48,9 +49,10 @@ function buildTraceItems(run: MarketAnalysisRun): Array<{ label: string; value: 
   ];
 }
 
-export function ProcessTraceLog(props: { run: MarketAnalysisRun }) {
-  const { run } = props;
+export function ProcessTraceLog(props: { run: MarketAnalysisRun; stages?: MarketAnalysisStageTrace[] }) {
+  const { run, stages = [] } = props;
   const traceItems = buildTraceItems(run);
+  const latestStages = stages.slice(-10);
   const allMessages = [
     run.errorMessage ? `ERROR: ${run.errorMessage}` : null,
     ...run.result.warnings,
@@ -89,6 +91,23 @@ export function ProcessTraceLog(props: { run: MarketAnalysisRun }) {
         ) : (
           <p className="muted small">No hay advertencias registradas para esta corrida.</p>
         )}
+
+        {latestStages.length > 0 ? (
+          <div className="trace-log-section">
+            <h3>Etapas registradas</h3>
+            <ul className="plain-list">
+              {latestStages.map((stage, index) => (
+                <li key={`${stage.stage_name}-${stage.started_at}-${index}`}>
+                  <strong>{stage.stage_name}</strong>: {stage.status}
+                  {stage.model ? ` · ${stage.model}` : ""}
+                  {stage.retry_count ? ` · retry ${stage.retry_count}` : ""}
+                  {stage.duration_ms ? ` · ${formatDuration(stage.duration_ms)}` : ""}
+                  {stage.error_message ? ` · ${stage.error_message}` : ""}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         <div className="trace-log-section">
           <h3>Origen del archivo</h3>

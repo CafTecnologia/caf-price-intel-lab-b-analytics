@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     const odooProjectName =
       typeof rawOdooProjectName === "string" && rawOdooProjectName.trim() ? rawOdooProjectName.trim() : null;
     const bytes = Buffer.from(await file.arrayBuffer());
-    const run = await getMarketAnalysisService().processUpload({
+    const run = await getMarketAnalysisService().startUpload({
       fileName: file.name,
       mimeType: file.type || "application/octet-stream",
       bytes,
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       odooProjectName,
     });
 
-    return NextResponse.json({ runId: run.runId });
+    return NextResponse.json({ runId: run.runId, status: run.status }, { status: 202 });
   } catch (error) {
     const runId =
       error && typeof error === "object" && "runId" in error && typeof error.runId === "string" ? error.runId : null;

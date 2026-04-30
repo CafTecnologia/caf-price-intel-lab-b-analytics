@@ -220,7 +220,7 @@ function timeoutMsForStage(stageName: StageName): number {
   if (stageName === "final_result" || stageName === "normalized_items_generation") {
     return 6 * 60_000;
   }
-  return 3 * 60_000;
+  return 2 * 60_000;
 }
 
 function baseStageName(stageName: string): StageName {
@@ -895,25 +895,37 @@ export async function runStagedMarketAnalysisPipeline(context: StageContext): Pr
     stageName: "document_map",
     prompt: promptDocumentMap(context),
     definition: stageDefinition<z.infer<typeof DocumentMapSchema>>("document_map"),
+    retries: 0,
   });
   accumulateStageUsage(usageTotals, map);
   if (!map.ok) stageErrors.push(`document_map: ${map.error}`);
+  if (!map.ok) {
+    throw new Error(`STAGED_PIPELINE_REQUIRED_STAGE_FAILED: document_map: ${map.error}`);
+  }
 
   const plan = await runConfiguredStage(context, {
     stageName: "extraction_plan",
     prompt: promptExtractionPlan(context, map.value),
     definition: stageDefinition<z.infer<typeof ExtractionPlanSchema>>("extraction_plan"),
+    retries: 0,
   });
   accumulateStageUsage(usageTotals, plan);
   if (!plan.ok) stageErrors.push(`extraction_plan: ${plan.error}`);
+  if (!plan.ok) {
+    throw new Error(`STAGED_PIPELINE_REQUIRED_STAGE_FAILED: extraction_plan: ${plan.error}`);
+  }
 
   const priceTable = await runConfiguredStage(context, {
     stageName: "official_price_table_extraction",
     prompt: promptOfficialPriceTable(context, plan.value),
     definition: stageDefinition<z.infer<typeof OfficialPriceTableSchema>>("official_price_table_extraction"),
+    retries: 0,
   });
   accumulateStageUsage(usageTotals, priceTable);
   if (!priceTable.ok) stageErrors.push(`official_price_table_extraction: ${priceTable.error}`);
+  if (!priceTable.ok) {
+    throw new Error(`STAGED_PIPELINE_REQUIRED_STAGE_FAILED: official_price_table_extraction: ${priceTable.error}`);
+  }
 
   const planValue = plan.value as { batches?: Array<{ batch_id?: string; section_ids?: string[]; item_hint?: string; goal?: string }> };
   const planBatches = Array.isArray(planValue.batches) ? planValue.batches : [];
@@ -942,9 +954,13 @@ export async function runStagedMarketAnalysisPipeline(context: StageContext): Pr
     prompt: promptNormalizedItems(context, { priceTable: priceTable.value, technicalBatches }),
     definition: stageDefinition<MarketAnalysisTransportResult>("normalized_items_generation"),
     allowGrounding: true,
+    retries: 0,
   });
   accumulateStageUsage(usageTotals, normalized);
   if (!normalized.ok) stageErrors.push(`normalized_items_generation: ${normalized.error}`);
+  if (!normalized.ok) {
+    throw new Error(`STAGED_PIPELINE_REQUIRED_STAGE_FAILED: normalized_items_generation: ${normalized.error}`);
+  }
 
   const audit = await runConfiguredStage(context, {
     stageName: "audit_pass",
