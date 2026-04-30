@@ -100,6 +100,13 @@ describe("market analysis quality gate", () => {
     expect(statusFor(stages)).toBe("completed");
   });
 
+  it("does not treat direct file rejection as unresolved when direct text completed", () => {
+    const stages = [stage("ia_direct_file_generate", "failed", 0), stage("ia_direct_text_generate", "completed", 1)];
+
+    expect(getUnresolvedFailedStages(stages)).toHaveLength(0);
+    expect(statusFor(stages)).toBe("completed");
+  });
+
   it("degrades optional quality repairs to completed_with_warnings", () => {
     expect(statusFor([stage("repair_pass:quality_gap", "failed")])).toBe("completed_with_warnings");
   });

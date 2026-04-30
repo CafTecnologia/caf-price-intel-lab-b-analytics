@@ -59,7 +59,7 @@ function hasTraceableSourceLocation(value: string): boolean {
 }
 
 function isIncompleteResultWarning(value: string): boolean {
-  return /incomplete_run|filas?\s+faltantes|items?\s+faltantes|ítems?\s+faltantes|solo\s+se\s+generaron|no\s+se\s+generaron|no\s+se\s+pueden\s+inventar/i.test(
+  return /auditoria_cobertura|incomplete_run|filas?\s+faltantes|items?\s+faltantes|ítems?\s+faltantes|solo\s+se\s+generaron|no\s+se\s+generaron|no\s+se\s+pueden\s+inventar/i.test(
     value,
   );
 }
@@ -78,8 +78,11 @@ export function getUnresolvedFailedStages(stages: MarketAnalysisStageTrace[]) {
     }
   }
 
+  const directTextCompleted = latestTerminalByName.get("ia_direct_text_generate")?.status === "completed";
+
   return Array.from(latestTerminalByName.values())
     .filter((stage) => stage.status === "failed")
+    .filter((stage) => !(stage.stage_name === "ia_direct_file_generate" && directTextCompleted))
     .map((stage) => ({
       stageName: stage.stage_name,
       errorMessage: stage.error_message,

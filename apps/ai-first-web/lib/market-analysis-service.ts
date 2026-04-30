@@ -14,6 +14,7 @@ import { buildInitialOfferControls, buildOfferSimulation, toOfferExportRows } fr
 import {
   buildMarketAnalysisChunkPrompt,
   buildMarketAnalysisConsolidationPrompt,
+  buildDirectFileMarketAnalysisPrompt,
   buildMarketAnalysisPrompt,
   buildMarketAnalysisSourceRepairPrompt,
   buildNativePdfMarketAnalysisPrompt,
@@ -78,7 +79,8 @@ function buildChecksum(buffer: Buffer): string {
 }
 
 function buildDocumentText(segments: Awaited<ReturnType<typeof segmentDocumentFromFile>>): string {
-  return segments
+  const maxChars = Number(process.env.AI_FIRST_DOCUMENT_TEXT_MAX_CHARS ?? "900000");
+  const documentText = segments
     .map((segment) => {
       const location = [
         segment.locator.sheet ? `sheet=${segment.locator.sheet}` : null,
@@ -90,8 +92,9 @@ function buildDocumentText(segments: Awaited<ReturnType<typeof segmentDocumentFr
 
       return `--- segment_id=${segment.segment_id}${location ? ` (${location})` : ""} ---\n${segment.raw_text}`;
     })
-    .join("\n\n")
-    .slice(0, 180_000);
+    .join("\n\n");
+
+  return Number.isFinite(maxChars) && maxChars > 0 ? documentText.slice(0, maxChars) : documentText;
 }
 
 function buildSourceSummary(segments: Awaited<ReturnType<typeof segmentDocumentFromFile>>): string {
@@ -134,6 +137,21 @@ function splitDocumentTextForAi(documentText: string, maxChunkChars = 80_000, ov
 function hasIncompleteSampleLanguage(result: MarketAnalysisResult): boolean {
   const text = [...result.warnings, ...result.provider_notes].join(" ").toLowerCase();
   return /\brepresentativ|\bmuestra|\bseleccionad|\bpor volumen|\bpor valor tecnico/.test(text);
+}
+
+function isNonRecoverableProviderError(error: unknown): boolean {
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  if (message.includes("quota") || message.includes("rate-limit") || message.includes("rate limit")) {
+    return false;
+  }
+
+  return (
+    message.includes("prepayment credits") ||
+    message.includes("credits are depleted") ||
+    message.includes("api key") ||
+    message.includes("unauthorized") ||
+    message.includes("permission denied")
+  );
 }
 
 function shouldUseAiFirstPipeline(documentText: string): boolean {
@@ -703,6 +721,124 @@ async function runNativePdfMarketAnalysis(input: {
   };
 }
 
+async function runDirectFileMarketAnalysis(input: {
+  runId: string;
+  providerConnection: ReturnType<typeof getActiveProviderConnectionForServer>;
+  fileName: string;
+  fileType: FileType;
+  uploadedFilePath: string;
+  mimeType: string;
+  sourceSummary: string;
+  expectedItemCount: number | null;
+}) {
+  const prompt = buildDirectFileMarketAnalysisPrompt({
+    fileName: input.fileName,
+    fileType: input.fileType,
+    sourceSummary: input.sourceSummary,
+    expectedItemHint: input.expectedItemCount,
+  });
+  const geminiFile = await uploadGeminiFile({
+    baseUrl: input.providerConnection.baseUrl,
+    apiKey: input.providerConnection.apiKey,
+    filePath: input.uploadedFilePath,
+    mimeType: input.mimeType,
+    displayName: input.fileName,
+  });
+  const countedTokens = await countGeminiTokens({
+    baseUrl: input.providerConnection.baseUrl,
+    apiKey: input.providerConnection.apiKey,
+    model: input.providerConnection.model,
+    prompt,
+    geminiFile,
+  }).catch(() => null);
+  const output = await runProviderStage({
+    runId: input.runId,
+    documentName: input.fileName,
+    stageName: "ia_direct_file_generate",
+    providerConnection: input.providerConnection,
+    prompt,
+    allowGrounding: true,
+    geminiFile,
+    thinkingLevel: "high",
+  });
+
+  const result: MarketAnalysisResult = {
+    rows: output.result.rows,
+    warnings: Array.from(new Set([...output.result.warnings, ...buildCoverageWarnings(output.result, input.expectedItemCount)])),
+    provider_notes: Array.from(
+      new Set([
+        ...output.result.provider_notes,
+        "Flujo Gemini directo: el archivo original se envio a Gemini como entrada principal.",
+        countedTokens ? `Conteo previo Gemini con archivo: ${countedTokens} tokens aproximados.` : "Conteo previo Gemini con archivo no disponible.",
+        input.expectedItemCount ? `Auditoria local previa: cerca de ${input.expectedItemCount} items esperados.` : "Auditoria local previa sin conteo confiable.",
+      ]),
+    ),
+  };
+
+  if (result.rows.length === 0) {
+    throw new Error("Gemini directo con archivo no produjo filas finales.");
+  }
+
+  if (hasIncompleteSampleLanguage(result)) {
+    throw new Error(
+      "Gemini directo devolvio lenguaje de muestra o seleccion parcial. Se detuvo esta ruta para intentar un respaldo.",
+    );
+  }
+
+  return {
+    result,
+    usage: {
+      ...output.usage,
+      inputTokens: output.usage.inputTokens ?? countedTokens,
+    },
+  };
+}
+
+async function runDirectTextMarketAnalysis(input: {
+  runId: string;
+  providerConnection: ReturnType<typeof getActiveProviderConnectionForServer>;
+  fileName: string;
+  prompt: string;
+  expectedItemCount: number | null;
+}) {
+  const output = await runProviderStage({
+    runId: input.runId,
+    documentName: input.fileName,
+    stageName: "ia_direct_text_generate",
+    providerConnection: input.providerConnection,
+    prompt: input.prompt,
+    allowGrounding: true,
+    thinkingLevel: "high",
+  });
+
+  const result: MarketAnalysisResult = {
+    rows: output.result.rows,
+    warnings: Array.from(new Set([...output.result.warnings, ...buildCoverageWarnings(output.result, input.expectedItemCount)])),
+    provider_notes: Array.from(
+      new Set([
+        ...output.result.provider_notes,
+        "Flujo Gemini directo con texto fiel: el documento segmentado se envio en una sola instruccion, sin pipeline por etapas.",
+        input.expectedItemCount ? `Auditoria local previa: cerca de ${input.expectedItemCount} items esperados.` : "Auditoria local previa sin conteo confiable.",
+      ]),
+    ),
+  };
+
+  if (result.rows.length === 0) {
+    throw new Error("Gemini directo con texto no produjo filas finales.");
+  }
+
+  if (hasIncompleteSampleLanguage(result)) {
+    throw new Error(
+      "Gemini directo con texto devolvio lenguaje de muestra o seleccion parcial. Se detuvo esta ruta para intentar un respaldo.",
+    );
+  }
+
+  return {
+    result,
+    usage: output.usage,
+  };
+}
+
 function createMockResult(documentText: string) {
   const rows = documentText
     .split(/\r?\n/)
@@ -946,6 +1082,99 @@ export class MarketAnalysisService {
             groundingSources: [],
           },
         };
+      } else if (
+        providerConnection.provider === "gemini" &&
+        process.env.AI_FIRST_GEMINI_DIRECT_FILE !== "false"
+      ) {
+        try {
+          providerOutput = await runDirectFileMarketAnalysis({
+            runId,
+            providerConnection,
+            fileName: request.fileName,
+            fileType,
+            uploadedFilePath,
+            mimeType: request.mimeType || "application/octet-stream",
+            sourceSummary: enrichedSourceSummary,
+            expectedItemCount,
+          });
+        } catch (directFileError) {
+          if (isNonRecoverableProviderError(directFileError)) {
+            throw directFileError;
+          }
+
+          const directFallbackWarning = `DIRECT_FILE_FALLBACK: ${directFileError instanceof Error ? directFileError.message : "fallo Gemini directo con archivo"}. Se intento flujo directo con texto fiel.`;
+          try {
+            providerOutput = await runDirectTextMarketAnalysis({
+              runId,
+              providerConnection,
+              fileName: request.fileName,
+              prompt,
+              expectedItemCount,
+            });
+          } catch (directTextError) {
+            if (isNonRecoverableProviderError(directTextError)) {
+              throw directTextError;
+            }
+
+            const directTextFallbackWarning = `DIRECT_TEXT_FALLBACK: ${directTextError instanceof Error ? directTextError.message : "fallo Gemini directo con texto"}. Se uso flujo de respaldo por etapas.`;
+            try {
+              if (process.env.AI_FIRST_USE_STAGED_PIPELINE !== "false") {
+                const stagedOutput = await runStagedMarketAnalysisPipeline({
+                  runId,
+                  fileName: request.fileName,
+                  fileType,
+                  sourceSummary: enrichedSourceSummary,
+                  documentText,
+                  providerConnection,
+                  expectedItemCount,
+                });
+
+                if (stagedOutput.result.rows.length === 0) {
+                  throw new Error("El pipeline IA-first por etapas no produjo filas finales.");
+                }
+
+                providerOutput = stagedOutput;
+              } else {
+                providerOutput = shouldUseAiFirstPipeline(documentText)
+                  ? await runAiFirstChunkedMarketAnalysis({
+                      runId,
+                      providerConnection,
+                      fileName: request.fileName,
+                      fileType,
+                      documentText,
+                      expectedItemCount,
+                    })
+                  : (() => {
+                      throw directTextError;
+                    })();
+              }
+            } catch (stagedPipelineError) {
+              providerOutput = await runProviderStage({
+                runId,
+                documentName: request.fileName,
+                stageName: "legacy_full_run_after_direct_file",
+                providerConnection,
+                prompt,
+                allowGrounding: true,
+                thinkingLevel: "high",
+              });
+              providerOutput.result.warnings = Array.from(
+                new Set([
+                  ...providerOutput.result.warnings,
+                  `STAGED_PIPELINE_FALLBACK: ${stagedPipelineError instanceof Error ? stagedPipelineError.message : "fallo pipeline por etapas"}. Se uso flujo legacy completo.`,
+                ]),
+              );
+            }
+
+            providerOutput.result.warnings = Array.from(
+              new Set([...providerOutput.result.warnings, directTextFallbackWarning]),
+            );
+          }
+
+          providerOutput.result.warnings = Array.from(
+            new Set([...providerOutput.result.warnings, directFallbackWarning]),
+          );
+        }
       } else if (
         providerConnection.provider === "gemini" &&
         process.env.AI_FIRST_USE_STAGED_PIPELINE !== "false"

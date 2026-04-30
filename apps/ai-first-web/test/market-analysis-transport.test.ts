@@ -86,6 +86,35 @@ describe("market analysis transport mapping", () => {
     );
   });
 
+  it("normalizes line breaks in provider output before UI and export", () => {
+    const transport = MarketAnalysisTransportResultSchema.parse({
+      rows: [
+        {
+          item: "1",
+          description: "M antenimiento preventivo",
+          technical_description: "Mantenimiento preventivo\nservidores",
+          quantity: "6 UND",
+          fit_analysis: "Ficha abierta",
+          source_1: "[COLOMBIA] ORT Computadores | COP 9\n00000 | https://ortcomputadores.com.co",
+          source_2: "[COLOMBIA] SALES CLOUD S.A.S | COP 450000 | https://\nsalescloud.com.co",
+          source_3: "N/D",
+          reference_unit: "690000",
+          notes: "DOCUMENTO_BASE_\nCON_PRECIO_TECHO",
+        },
+      ],
+      warnings: [],
+      provider_notes: [],
+    });
+
+    const row = normalizeMarketAnalysisTransportResult(transport).rows[0];
+
+    expect(row?.["Nombre o descripción"]).toBe("Mantenimiento preventivo");
+    expect(row?.["Descripción o ficha técnica"]).toBe("Mantenimiento preventivo servidores");
+    expect(row?.["Fuente 1 (Precio)"]).toContain("COP 900000");
+    expect(row?.["Fuente 2 (Precio)"]).toContain("https://salescloud.com.co");
+    expect(row?.["Resumen de Fuentes y Observaciones"]).toContain("DOCUMENTO_BASE_CON_PRECIO_TECHO");
+  });
+
   it("builds a concise prompt that separates document reference from market sources", () => {
     const prompt = buildMarketAnalysisPrompt({
       fileName: "demo.xlsx",

@@ -121,8 +121,7 @@ const GEMINI_STREAM_IDLE_TIMEOUT_MS = Number(
   process.env.AI_FIRST_GEMINI_STREAM_IDLE_TIMEOUT_MS ?? DEFAULT_GEMINI_STREAM_IDLE_TIMEOUT_MS,
 );
 const GEMINI_ANALYSIS_FALLBACKS: Record<string, string[]> = {
-  "gemini-3.1-pro-preview": ["gemini-3.1-flash-lite-preview", "gemini-2.5-pro", "gemini-2.5-flash"],
-  "gemini-3.1-flash-lite-preview": ["gemini-2.5-pro", "gemini-2.5-flash"],
+  "gemini-3.1-pro-preview": ["gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash"],
   "gemini-3-flash-preview": ["gemini-2.5-pro", "gemini-2.5-flash"],
   "gemini-2.5-pro": ["gemini-2.5-flash"],
 };
@@ -250,6 +249,9 @@ function isConfirmedGeminiModelNegative(error: unknown): boolean {
     return (
       error.name === "AbortError" ||
       normalizedMessage.includes("high demand") ||
+      normalizedMessage.includes("quota") ||
+      normalizedMessage.includes("rate-limit") ||
+      normalizedMessage.includes("rate limit") ||
       normalizedMessage.includes("unavailable") ||
       normalizedMessage.includes("overloaded") ||
       normalizedMessage.includes("aborted") ||
@@ -392,7 +394,7 @@ export async function uploadGeminiFile(input: {
   displayName: string;
 }): Promise<GeminiFileReference> {
   if (!input.apiKey) {
-    throw new Error("No hay API key configurada para subir el PDF a Gemini.");
+    throw new Error("No hay API key configurada para subir el archivo a Gemini.");
   }
 
   const bytes = await readFile(input.filePath);
@@ -428,20 +430,47 @@ export async function uploadGeminiFile(input: {
   });
 
   if (!uploadResponse.ok) {
-    throw new Error(`Gemini no acepto el archivo PDF (${uploadResponse.status}).`);
+    throw new Error(`Gemini no acepto el archivo (${uploadResponse.status}).`);
   }
 
   const uploaded = (await uploadResponse.json()) as GeminiUploadResponse;
-  const file = uploaded.file;
-  const fileUri = file?.uri;
+  let file = uploaded.file;
+  if (file?.name) {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      if (!file) {
+        break;
+      }
+      const state = file.state?.toUpperCase();
+      if (!state || state === "ACTIVE") {
+        break;
+      }
+      if (state === "FAILED") {
+        throw new Error("Gemini marco el archivo como FAILED despues de subirlo.");
+      }
+      if (state !== "PROCESSING") {
+        break;
+      }
+
+      await sleep(5_000);
+      const fileResponse = await fetch(`${geminiBaseUrl(input.baseUrl)}/v1beta/${file.name}?key=${input.apiKey}`);
+      if (!fileResponse.ok) {
+        throw new Error(`Gemini no permitio consultar el estado del archivo (${fileResponse.status}).`);
+      }
+      const filePayload = (await fileResponse.json()) as GeminiUploadResponse | NonNullable<GeminiUploadResponse["file"]>;
+      file = (filePayload as GeminiUploadResponse).file ?? (filePayload as NonNullable<GeminiUploadResponse["file"]>);
+    }
+  }
+
+  const finalFile = file;
+  const fileUri = finalFile?.uri;
   if (!fileUri) {
     throw new Error("Gemini no devolvio URI del archivo subido.");
   }
 
   return {
     fileUri,
-    mimeType: file.mimeType ?? file.mime_type ?? input.mimeType,
-    name: file.name,
+    mimeType: finalFile.mimeType ?? finalFile.mime_type ?? input.mimeType,
+    name: finalFile.name,
   };
 }
 

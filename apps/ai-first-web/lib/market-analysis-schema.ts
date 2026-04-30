@@ -95,10 +95,52 @@ export function normalizeMarketAnalysisTransportPayload(input: unknown): unknown
 }
 
 export function normalizeMarketAnalysisRow(input: Partial<Record<MarketAnalysisColumn, unknown>>): MarketAnalysisRow {
+  const repairSplitWords = (value: string) => {
+    const domainWords = [
+      "mantenimiento",
+      "preventivo",
+      "correctivo",
+      "servidores",
+      "almacenamiento",
+      "estaciones",
+      "trabajo",
+      "unidades",
+      "pantallas",
+      "interactivas",
+      "proyectores",
+      "impresoras",
+      "scanner",
+      "switch",
+    ];
+
+    return domainWords.reduce(
+      (text, word) =>
+        text.replace(new RegExp(`\\b${word[0]}\\s+${word.slice(1)}\\b`, "gi"), (match) =>
+          /^[A-ZÁÉÍÓÚÑ]/.test(match) ? `${word[0].toUpperCase()}${word.slice(1)}` : word,
+        ),
+      value,
+    );
+  };
+  const cleanCellText = (value: unknown) => {
+    if (value === null || value === undefined) {
+      return "";
+    }
+
+    const normalized = String(value)
+          .replace(/(\d)[\s\u00a0]+(?=\d)/g, "$1")
+          .replace(/(https?:\/\/)\s+/gi, "$1")
+          .replace(/_\s+/g, "_")
+          .replace(/[ \t]*\r?\n[ \t]*/g, " ")
+          .replace(/\s{2,}/g, " ")
+          .trim();
+
+    return repairSplitWords(normalized);
+  };
+
   return Object.fromEntries(
     MARKET_ANALYSIS_COLUMNS.map((column) => {
       const value = input[column];
-      return [column, value === null || value === undefined ? "" : String(value).trim()];
+      return [column, cleanCellText(value)];
     }),
   ) as MarketAnalysisRow;
 }

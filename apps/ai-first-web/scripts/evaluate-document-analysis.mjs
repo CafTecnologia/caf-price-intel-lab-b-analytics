@@ -125,7 +125,7 @@ function sourceIdentity(value) {
 }
 
 function isIncompleteWarning(value) {
-  return /incomplete_run|filas?\s+faltantes|items?\s+faltantes|ítems?\s+faltantes|solo\s+se\s+generaron|no\s+se\s+generaron|no\s+se\s+pueden\s+inventar/i.test(
+  return /auditoria_cobertura|incomplete_run|filas?\s+faltantes|items?\s+faltantes|ítems?\s+faltantes|solo\s+se\s+generaron|no\s+se\s+generaron|no\s+se\s+pueden\s+inventar/i.test(
     String(value ?? ""),
   );
 }
@@ -354,8 +354,13 @@ function evaluate(expected, actual) {
     }),
   );
 
+  const presentStageNames = new Set(stages.map((stage) => String(stage?.stage_name ?? "")));
+  const directTextCompleted = stages.some(
+    (stage) => stage?.stage_name === "ia_direct_text_generate" && stage?.status === "completed",
+  );
   const failedStages = stages
     .filter((stage) => stage?.status === "failed")
+    .filter((stage) => !(stage?.stage_name === "ia_direct_file_generate" && directTextCompleted))
     .map((stage) => ({
       stage_name: stage.stage_name,
       error_message: stage.error_message,
@@ -364,7 +369,6 @@ function evaluate(expected, actual) {
   const allowStageFailures = expectedConfig.pipeline?.allow_stage_failures === true;
   const requirePipelineStages = expectedConfig.pipeline?.required === true;
   const requiredStages = expectedConfig.pipeline?.required_stages ?? [];
-  const presentStageNames = new Set(stages.map((stage) => String(stage?.stage_name ?? "")));
   const missingRequiredStages = requiredStages.filter((stageName) => !presentStageNames.has(stageName));
   checks.push(
     scoreBoolean(

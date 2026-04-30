@@ -83,12 +83,9 @@
       "required": true,
       "allow_stage_failures": false,
       "required_stages": [
-        "document_map",
-        "extraction_plan",
-        "official_price_table_extraction",
-        "normalized_items_generation",
-        "audit_pass",
-        "final_result"
+        "ia_direct_text_generate",
+        "calculate_financials",
+        "persist_run"
       ]
     }
   }

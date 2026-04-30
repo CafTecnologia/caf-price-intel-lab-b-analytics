@@ -1,4 +1,4 @@
-export const MARKET_ANALYSIS_PROMPT_VERSION = "2026-04-30.ai-first.6-traceable-sources";
+export const MARKET_ANALYSIS_PROMPT_VERSION = "2026-04-30.ai-first.7-direct-file";
 
 export const MARKET_ANALYSIS_MASTER_PROMPT = `
 Actua como un sistema experto de analisis documental, normalizacion de items, analisis forense tecnico y benchmarking comercial para contratacion estatal y corporativa en Colombia.
@@ -152,7 +152,7 @@ Reglas generales:
 5. Si no consigues 3 buenas fuentes, devuelve 1 o 2, pero solo despues de intentar varias estrategias razonables.
 6. No metas fuentes malas para completar.
 7. No inventes fuentes, precios, URLs, proveedores ni comparabilidades.
-8. Toda fuente con precio debe incluir URL http(s) o dominio verificable. Si no tienes URL/dominio, deja esa fuente en "N/D" y explica en notes: FUENTE_SIN_TRAZABILIDAD.
+8. Cuando tengas URL http(s) o dominio verificable, incluyelo en la fuente. Si tienes una fuente comercial defendible con precio pero sin URL exacta, conservala y explica en notes: FUENTE_SIN_URL_EXACTA. Si no hay trazabilidad minima de proveedor/fuente/precio, usa "N/D".
 9. Si la ficha es abierta, busca equivalentes industriales razonables.
 10. Si la ficha es cerrada, busca exactitud tecnica y comercial.
 11. Una fuente marketplace puede ser valida si:
@@ -212,7 +212,7 @@ Antes de entregar:
 1. Verifica que el numero de filas corresponda a todos los items visibles.
 2. Verifica que source_1, source_2 y source_3 no contengan precios internos del documento base.
 3. Verifica que reference_unit venga del documento base y no de busquedas externas.
-4. Verifica que toda fuente con precio tenga URL http(s) o dominio verificable.
+4. Verifica que toda fuente con precio tenga trazabilidad minima: proveedor/fuente, precio, moneda y, cuando exista, URL http(s) o dominio.
 5. Verifica que source_1, source_2 y source_3 no sean la misma fuente repetida.
 6. Verifica que la salida sea JSON estricto y que no exista texto fuera del JSON.
 `.trim();
@@ -258,9 +258,9 @@ Significado de campos:
 - technical_description: ficha tecnica o descripcion completa reconstruida.
 - quantity: cantidad y unidad.
 - fit_analysis: analisis forense breve: tipo de ficha, requisito clave, segmento comercial, lectura comercial y alertas tecnicas.
-- source_1: primera fuente externa comparable, con proveedor/fuente, precio unitario, moneda y URL http(s) o dominio verificable.
-- source_2: segunda fuente externa comparable, con proveedor/fuente, precio unitario, moneda y URL http(s) o dominio verificable.
-- source_3: tercera fuente externa comparable, con proveedor/fuente, precio unitario, moneda y URL http(s) o dominio verificable.
+- source_1: primera fuente externa comparable, con proveedor/fuente, precio unitario, moneda y URL/dominio cuando exista.
+- source_2: segunda fuente externa comparable, con proveedor/fuente, precio unitario, moneda y URL/dominio cuando exista.
+- source_3: tercera fuente externa comparable, con proveedor/fuente, precio unitario, moneda y URL/dominio cuando exista.
 - reference_unit: precio techo, promedio unitario, referencia unitaria o valor unitario base visible en el documento.
 - notes: trazabilidad documental, hoja/pagina/seccion si existe, proveedor documental, dudas, limitaciones de busqueda, comparabilidad de fuentes y etiquetas internacionales cuando apliquen.
 
@@ -319,6 +319,39 @@ Resumen de extraccion local de apoyo:
 ${input.sourceSummary}
 
 Segun el PDF adjunto y la informacion anterior, extrae todos los items del documento completo, analiza tecnicamente cada item y busca fuentes externas comparables para cada uno.
+`.trim();
+}
+
+export function buildDirectFileMarketAnalysisPrompt(input: {
+  fileName: string;
+  fileType: string;
+  sourceSummary: string;
+  expectedItemHint?: number | null;
+}) {
+  return `
+${MARKET_ANALYSIS_MASTER_PROMPT}
+
+Recibiras el archivo original adjunto. Usa el archivo como fuente principal de verdad.
+No trabajes desde un resumen si el archivo contiene mas detalle.
+
+Si el archivo es PDF, lee visualmente todas las paginas, tablas, anexos y textos.
+Si el archivo es Excel, lee todas las hojas, tablas, celdas, encabezados y filas visibles.
+Si el archivo es Word, lee tablas y parrafos completos.
+
+El objetivo es una sola corrida fuerte: entender el documento completo, extraer todos los items, analizar tecnicamente cada item y buscar hasta 3 fuentes externas comparables por item.
+Evita depender de reparaciones posteriores. Entrega el mejor JSON final posible en esta respuesta.
+Si el archivo trae ${input.expectedItemHint ?? "varios"} items, devuelve todos; no entregues ejemplos ni muestras.
+
+${transportContract()}
+
+Archivo:
+- file_name: ${input.fileName}
+- file_type: ${input.fileType}
+
+Resumen local de apoyo, no reemplaza el archivo:
+${input.sourceSummary}
+
+Segun el archivo adjunto, extrae todos los items del documento completo, analiza tecnicamente cada item y busca fuentes externas comparables para cada uno.
 `.trim();
 }
 
