@@ -6,6 +6,7 @@ import {
   normalizeMarketAnalysisTransportResult,
 } from "../lib/market-analysis-schema";
 import { buildMarketAnalysisPrompt } from "../lib/market-analysis-prompt";
+import { buildGeminiModelFallbackOrder } from "../lib/market-analysis-provider";
 import { isMarketSourcePrice, parseMarketSourceUnitPrice } from "../lib/market-source-pricing";
 
 describe("market analysis transport mapping", () => {
@@ -161,5 +162,14 @@ describe("market analysis transport mapping", () => {
     expect(prompt).toContain("reference_unit debe venir del documento base");
     expect(prompt).toContain("La app calculara costos");
     expect(prompt).not.toContain("Pueden venir del documento o de busqueda web");
+  });
+
+  it("keeps the preferred Gemini fallback order before falling back to cheaper flash models", () => {
+    expect(buildGeminiModelFallbackOrder("gemini-3.1-pro-preview")).toEqual([
+      "gemini-3.1-pro-preview",
+      "gemini-2.5-pro",
+      "gemini-3-flash-preview",
+      "gemini-2.5-flash",
+    ]);
   });
 });

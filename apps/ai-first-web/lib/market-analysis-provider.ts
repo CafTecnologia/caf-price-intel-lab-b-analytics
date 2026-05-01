@@ -121,7 +121,7 @@ const GEMINI_STREAM_IDLE_TIMEOUT_MS = Number(
   process.env.AI_FIRST_GEMINI_STREAM_IDLE_TIMEOUT_MS ?? DEFAULT_GEMINI_STREAM_IDLE_TIMEOUT_MS,
 );
 const GEMINI_ANALYSIS_FALLBACKS: Record<string, string[]> = {
-  "gemini-3.1-pro-preview": ["gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash"],
+  "gemini-3.1-pro-preview": ["gemini-2.5-pro", "gemini-3-flash-preview", "gemini-2.5-flash"],
   "gemini-3-flash-preview": ["gemini-2.5-pro", "gemini-2.5-flash"],
   "gemini-2.5-pro": ["gemini-2.5-flash"],
 };
@@ -212,7 +212,21 @@ function providerErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Error desconocido consultando Gemini.";
 }
 
+function isGeminiDailyQuotaError(error: unknown): boolean {
+  const message = providerErrorMessage(error).toLowerCase();
+  return (
+    message.includes("generate_requests_per_model_per_day") ||
+    message.includes("generaterequestsperdayperprojectpermodel") ||
+    (message.includes("quota exceeded") && message.includes("per_day")) ||
+    (message.includes("quota exceeded") && message.includes("retry in"))
+  );
+}
+
 function isTransientGeminiError(error: unknown): boolean {
+  if (isGeminiDailyQuotaError(error)) {
+    return false;
+  }
+
   if (error instanceof ProviderHttpError) {
     return GEMINI_TRANSIENT_STATUSES.has(error.status);
   }
@@ -269,7 +283,7 @@ function isConfirmedGeminiModelNegative(error: unknown): boolean {
   return false;
 }
 
-function buildGeminiModelFallbackOrder(model: string): string[] {
+export function buildGeminiModelFallbackOrder(model: string): string[] {
   return Array.from(new Set([model, ...(GEMINI_ANALYSIS_FALLBACKS[model] ?? [])]));
 }
 
@@ -295,6 +309,10 @@ async function withGeminiGenerateRetries<T>(args: {
       return await args.operation();
     } catch (error) {
       lastError = error;
+      if (isGeminiDailyQuotaError(error)) {
+        break;
+      }
+
       if (!isTransientGeminiError(error) || attempt === maxAttempts) {
         break;
       }
