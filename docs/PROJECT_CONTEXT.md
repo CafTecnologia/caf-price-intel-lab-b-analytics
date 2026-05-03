@@ -17,3 +17,6 @@ Este proyecto hace parte de los laboratorios A/B/C que buscan resolver la misma 
 ## Como retomar en un chat nuevo
 Pedir a Codex:
 Lee AGENTS.md y docs/PROJECT_CONTEXT.md. No hagas cambios todavia. Primero dime que entiendes y que siguiente paso recomiendas.
+## Guias operativas nuevas
+- Trabajo con Codex: docs/CODEX_WORKFLOW.md
+- Promocion a Odoo clone y produccion: docs/ODOO_PROMOTION_FLOW.md
