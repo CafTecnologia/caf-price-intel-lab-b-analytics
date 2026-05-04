@@ -20,12 +20,6 @@ Es una calculadora deterministica independiente. No usa IA, no llama Gemini y no
 
 ## Ubicacion
 
-Local:
-
-```text
-C:\Users\Cande\gestion-proyectos\prueba\tmp-financial-offer-web
-```
-
 VPS DEV:
 
 ```text
