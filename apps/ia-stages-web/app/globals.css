@@ -45,10 +45,489 @@ select {
   padding: 8px 0;
 }
 
+.topbarActions {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 10px;
+}
+
 .topbarNav {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.iconGearButton {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 44px;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0;
+  width: 44px;
+}
+
+.iconGearButton:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.iconGearSvg {
+  display: block;
+  height: 22px;
+  width: 22px;
+}
+
+.configDrawerBackdrop {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  background: rgba(16, 22, 30, 0.38);
+  inset: 0;
+  position: fixed;
+  z-index: 300;
+}
+
+.configDrawer {
+  animation: configDrawerIn 0.22s ease-out;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  bottom: 0;
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.12);
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 20px 20px 28px;
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: min(560px, 100vw);
+}
+
+@keyframes configDrawerIn {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+.configDrawerHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.configDrawerHeader h2 {
+  font-size: 1.15rem;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.configDrawerClose {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex-shrink: 0;
+  font-size: 1.45rem;
+  font-weight: 700;
+  height: 40px;
+  justify-content: center;
+  line-height: 1;
+  min-height: 40px;
+  padding: 0;
+  width: 40px;
+}
+
+.configDrawerClose:hover {
+  background: #edf1f4;
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.configDrawerBadges {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  margin-bottom: 12px;
+}
+
+.configDrawerSection + .configDrawerSection {
+  border-top: 1px solid var(--border);
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.configDrawerSectionHead {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.configDrawerSectionTitle {
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.configDrawer .configGrid {
+  margin-top: 0;
+}
+
+.configDrawer .configGrid,
+.configDrawer .providerModelGrid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.configDrawer label,
+.configDrawer .providerModelCard,
+.configDrawer input,
+.configDrawer select,
+.configDrawer button {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.configDrawer input,
+.configDrawer select {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.configDrawer .providerModelCard {
+  align-items: stretch;
+}
+
+.configDrawer .providerModelCard .miniButton {
+  justify-content: center;
+  white-space: normal;
+  width: 100%;
+}
+
+.configDrawerBadges .badge {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stageModelGridDrawer {
+  margin-top: 0;
+}
+
+.configSubheadRow {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.configSubhead {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.appShell {
+  align-items: stretch;
+  background: var(--bg);
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.sessionsSidebar {
+  background: #e9edf1;
+  border-right: 1px solid var(--border);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width 0.2s ease;
+}
+
+.sessionsSidebar.isCollapsed {
+  width: 48px;
+}
+
+.sessionsSidebar.isExpanded {
+  width: min(300px, 88vw);
+}
+
+.sessionsSidebarToolbar {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+  justify-content: space-between;
+  min-height: 52px;
+  padding: 8px 10px;
+}
+
+.sessionsSidebar.isCollapsed .sessionsSidebarToolbar {
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 10px 6px;
+}
+
+.sessionsSidebarHeading {
+  font-size: 0.95rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.sessionsSidebarToolbarActions {
+  display: flex;
+  gap: 4px;
+}
+
+.sessionsIconBtn {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--accent);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 1rem;
+  height: 34px;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0;
+  width: 34px;
+}
+
+.sessionsIconBtn:hover {
+  background: #ffffff;
+}
+
+.sessionsCollapsedTrigger {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  padding: 8px 0;
+  width: 100%;
+}
+
+.sessionsCollapsedTrigger:hover {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.sessionsListIcon {
+  display: block;
+  height: 22px;
+  width: 22px;
+}
+
+.sessionsSidebarBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 10px 10px 14px;
+}
+
+.sessionsSidebarError {
+  font-size: 0.82rem;
+  padding: 8px;
+}
+
+.sessionsEmpty {
+  font-size: 0.82rem;
+  margin: 0;
+  padding: 4px 2px;
+}
+
+.sessionsList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sessionsListItem {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.sessionsListItemTop {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.sessionsListDate {
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.sessionsListFile {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.3;
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sessionsListMeta {
+  font-size: 0.72rem;
+  margin-bottom: 8px;
+}
+
+.sessionsOpenBtn {
+  font-size: 0.82rem;
+  min-height: 34px;
+  width: 100%;
+}
+
+.workspaceColumn {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.workspaceInner {
+  box-sizing: border-box;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  margin: 0 auto;
+  max-width: min(1180px, 100%);
+  padding: 16px 16px 40px;
+  width: 100%;
+}
+
+.workspaceTopbar {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-top: 4px;
+}
+
+.workspaceTopbarMain {
+  min-width: 0;
+}
+
+.workspaceH1 {
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.contextLineCompact {
+  font-size: 0.82rem;
+  margin: 6px 0 0;
+}
+
+.workspacePanel {
+  margin-bottom: 16px;
+}
+
+.fileLabelRow {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.fileLabelRow .fileLabel {
+  margin-bottom: 0;
+}
+
+.infoTip {
+  cursor: help;
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  line-height: 1;
+  opacity: 0.55;
+  user-select: none;
+}
+
+.infoTip:hover {
+  opacity: 0.95;
+}
+
+.metaOneLine {
+  font-size: 0.82rem;
+  margin: 0 0 10px;
+}
+
+.fileNameHint,
+.runIdHint {
+  font-size: 0.8rem;
+  margin: 6px 0 0;
+  opacity: 0.85;
+}
+
+.ingestPreviewLine {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.84rem;
+}
+
+.topbarNavButton {
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 4px 2px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.topbarNavButton:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
 }
 
 .topbarNavLink {
@@ -85,6 +564,43 @@ select {
   width: 100%;
   height: min(82vh, 900px);
   border: none;
+}
+
+.embedExternalPanel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-width: 720px;
+  padding: 20px 22px 22px;
+}
+
+.embedExternalTitle {
+  font-size: 1.2rem;
+  margin: 0 0 12px;
+}
+
+.embedExternalLead {
+  line-height: 1.55;
+  margin: 0 0 14px;
+}
+
+.embedExternalMeta {
+  margin: 0 0 16px;
+}
+
+.embedExternalActions {
+  margin-bottom: 16px;
+}
+
+.embedExternalHintList {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.embedExternalHint {
+  font-size: 0.9rem;
+  margin: 10px 0 0;
 }
 
 .eyebrow {
@@ -130,20 +646,92 @@ input[type="file"] {
 }
 
 .configGrid label,
-.stageModelGrid label {
+.stageModelGrid label,
+.stageModelGrid .modelPicker {
   display: grid;
   gap: 7px;
   font-weight: 700;
 }
 
+.modelPickerLabel {
+  font-weight: 700;
+}
+
+.modelPickerTrigger {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-height: 40px;
+  padding: 8px 10px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.modelPickerTrigger:hover {
+  border-color: var(--accent);
+}
+
+.modelPickerMenuRoot {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.18);
+}
+
+.modelPickerMenu {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+}
+
+.modelPickerGroupLabel {
+  padding: 8px 12px 4px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.modelPickerOption {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 9px 12px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--text);
+}
+
+.modelPickerOption:hover,
+.modelPickerOption:focus-visible {
+  background: #edf6fa;
+  outline: none;
+}
+
+.modelPickerOptionActive {
+  background: #e4f0f6;
+  font-weight: 700;
+}
+
 .configGrid input,
 .configGrid select,
+.providerModelGrid select,
 .stageModelGrid select {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 6px;
   min-height: 40px;
   padding: 8px 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.2;
 }
 
 .stageConfigBlock {
@@ -155,6 +743,48 @@ input[type="file"] {
   gap: 12px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-top: 10px;
+}
+
+.providerModelGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.providerModelCard {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.stageManualWrap {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-top: 8px;
+  overflow: auto;
+}
+
+.stageManualTable {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 620px;
+}
+
+.stageManualTable th,
+.stageManualTable td {
+  border-bottom: 1px solid var(--border);
+  padding: 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.warningNotice {
+  background: #fff7e8;
+  border: 1px solid #ffd48a;
+  color: #7a5300;
 }
 
 .muted {
@@ -630,6 +1260,10 @@ pre {
     grid-template-columns: 1fr;
   }
 
+  .providerModelGrid {
+    grid-template-columns: 1fr;
+  }
+
   .processMonitor {
     align-items: flex-start;
     flex-direction: column;
@@ -647,6 +1281,11 @@ pre {
   gap: 16px;
   justify-content: space-between;
   margin-bottom: 14px;
+}
+
+.historicalHeaderMain {
+  flex: 1;
+  min-width: 0;
 }
 
 .historicalHeader h2 {
@@ -730,4 +1369,314 @@ pre {
   margin: 8px 0 0;
   max-width: 56rem;
   font-size: 0.9rem;
+}
+
+/* —— Resultados por etapa (tabs + tabla contenida) —— */
+.stageResultsBleed {
+  box-sizing: border-box;
+  max-width: 100%;
+  width: 100%;
+}
+
+.stageResultsPanel {
+  max-width: none;
+}
+
+.stageResultsPanelHeader {
+  margin-bottom: 10px;
+}
+
+.stageResultsPanelTitleRow {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stageResultsPanelTitle {
+  font-size: 1.15rem;
+  margin: 0;
+}
+
+.stageTabBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+
+.stageTab {
+  align-items: flex-start;
+  background: #f3f5f7;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+  font: inherit;
+  min-height: 0;
+  padding: 8px 14px;
+  text-align: left;
+}
+
+.stageTab:hover {
+  border-color: #b8c4cf;
+  color: var(--text);
+}
+
+.stageTabActive {
+  background: #ffffff;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  color: var(--text);
+}
+
+.stageTabLabel {
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.stageTabHint {
+  font-size: 0.72rem;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.stageTabPanel {
+  min-height: 120px;
+}
+
+.stageTabBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.stageTabBadges {
+  justify-content: flex-start;
+  margin-bottom: 0;
+}
+
+.stageTabPlaceholder {
+  font-size: 0.82rem;
+  margin: 0;
+  opacity: 0.82;
+}
+
+.stageJsonStack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: flex-start;
+}
+
+.stageJsonStack .jsonDetails {
+  margin-top: 0;
+}
+
+.stageIngestHeading {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.dataTableMount {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.tableWrapScroll {
+  max-height: min(65vh, 720px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dataTable thead th {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  box-shadow: 0 1px 0 var(--border);
+}
+
+.dataTableCompact th,
+.dataTableCompact td {
+  font-size: 0.8rem;
+  line-height: 1.3;
+  padding: 6px 8px;
+}
+
+.dataTableCompact .thContent {
+  gap: 4px;
+  padding: 6px;
+}
+
+.dataTableCompact .tableIconButton,
+.dataTableCompact .tableToolButton {
+  font-size: 0.68rem;
+  font-weight: 700;
+  min-height: 22px;
+  padding: 0 5px;
+}
+
+.dataTableCompact .tableIconButton {
+  width: 30px;
+}
+
+.dataTableCompact .sortMark {
+  font-size: 0.62rem;
+}
+
+.dataTableCompact tbody td {
+  max-width: min(420px, 32vw);
+  vertical-align: middle;
+  word-break: normal;
+  overflow-wrap: normal;
+  white-space: normal;
+}
+
+.dataTableCompact tbody td.tdWide {
+  max-width: min(560px, 44vw);
+}
+
+.dataTableCompact tbody tr {
+  cursor: pointer;
+}
+
+.dataTableCompact tbody tr:hover td {
+  background: #fafcfd;
+}
+
+.dataTableRowExpanded td {
+  background: #f5f9fc;
+}
+
+.cellBody {
+  min-width: 0;
+}
+
+.cellBodyEllipsis {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cellBodyComplex {
+  max-height: 4.5em;
+  overflow: auto;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.cellBodyExpanded {
+  max-height: none;
+  overflow: visible;
+  white-space: normal;
+}
+
+.cellBodyExpanded.cellBodyEllipsis {
+  white-space: normal;
+  text-overflow: unset;
+}
+
+.jsonDetailsSubtle summary {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.74rem;
+  font-weight: 600;
+  list-style: none;
+  padding: 4px 10px;
+}
+
+.jsonDetailsSubtle summary::-webkit-details-marker {
+  display: none;
+}
+
+.jsonDetailsSubtle summary:hover {
+  background: #f3f5f7;
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.jsonDetailsSubtle pre {
+  font-size: 0.78rem;
+  margin-top: 8px;
+}
+
+.actionsCompact {
+  margin-top: 10px;
+}
+
+.actionsCompact button {
+  min-height: 36px;
+  font-size: 0.88rem;
+}
+
+a.linkAsButtonCompact {
+  min-height: 36px;
+  font-size: 0.88rem;
+  padding: 0 12px;
+}
+
+
+.profileBlock {
+  display: grid;
+  gap: 12px;
+}
+
+.profileHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.profileIntro {
+  margin: 4px 0 0;
+}
+
+.profileOptions {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.profileOption {
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #d8e2ec;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  min-height: 88px;
+  padding: 12px;
+}
+
+.profileOption.selected {
+  background: #eef6ff;
+  border-color: #2f5f88;
+  box-shadow: 0 0 0 1px rgba(47, 95, 136, 0.18);
+}
+
+.profileOption input {
+  margin-top: 3px;
+}
+
+.profileOption span {
+  display: grid;
+  gap: 4px;
+}
+
+.profileOption small {
+  color: #536577;
+  line-height: 1.35;
 }

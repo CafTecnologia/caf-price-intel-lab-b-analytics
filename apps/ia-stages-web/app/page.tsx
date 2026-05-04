@@ -1,7 +1,19 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import {
+  Fragment,
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction
+} from "react";
+import { createPortal } from "react-dom";
+import { useRouter, useSearchParams } from "next/navigation";
 import { financialIngestToTableRows } from "@/lib/financial-ingest-preview-rows";
 import type { FinancialIngestPayload } from "@/lib/stage3-to-financial-ingest";
 
@@ -81,6 +93,16 @@ type StageModels = {
   stage3: string;
 };
 
+type AiProvider = "gemini" | "deepseek";
+
+type WorkProfileId = "default" | "medio" | "avanzado" | "manual";
+
+type StageProviders = {
+  stage1: "" | AiProvider;
+  stage2: "" | AiProvider;
+  stage3: "" | AiProvider;
+};
+
 type LoadingStage = "stage1" | "stage2" | "stage3" | "pipeline" | null;
 
 type ProgressPhase = "idle" | "preparing" | "stage1" | "stage2" | "stage3" | "completed" | "failed";
@@ -105,6 +127,8 @@ type StageTiming = {
   totalMs?: number;
 };
 
+type ResultsTabId = "stage1" | "stage2" | "stage3" | "stage4";
+
 type StageErrorResponse = ApiResponse & {
   errorCode?: string;
   errorTitle?: string;
@@ -116,7 +140,16 @@ type StageErrorResponse = ApiResponse & {
 type ConfigResponse = {
   hasApiKey?: boolean;
   maskedApiKey?: string | null;
+  hasGeminiApiKey?: boolean;
+  hasDeepSeekApiKey?: boolean;
+  maskedGeminiApiKey?: string | null;
+  maskedDeepSeekApiKey?: string | null;
+  provider?: AiProvider;
+  geminiModel?: string;
+  deepseekModel?: string;
+  workProfile?: string;
   model?: string;
+  stageProviders?: Partial<StageProviders>;
   stageModels?: Partial<StageModels>;
   usage?: UsageSummary;
   cost?: CostSummary;
@@ -254,8 +287,30 @@ const AI_MODEL_GROUPS = [
   }
 ];
 
+const DEEPSEEK_MODEL_GROUPS = [
+  {
+    label: "Linea V4",
+    models: [
+      { value: "deepseek-v4-flash", label: "DeepSeek V4 Flash" },
+      { value: "deepseek-v4-pro", label: "DeepSeek V4 Pro" }
+    ]
+  }
+];
+
+const PROVIDER_MODEL_GROUPS: Record<AiProvider, typeof AI_MODEL_GROUPS> = {
+  gemini: AI_MODEL_GROUPS,
+  deepseek: DEEPSEEK_MODEL_GROUPS
+};
+
+const PROVIDER_LABELS: Record<AiProvider, string> = {
+  gemini: "Google",
+  deepseek: "DeepSeek"
+};
+
 const KNOWN_AI_MODELS = new Set(
-  AI_MODEL_GROUPS.flatMap((group) => group.models.map((item) => item.value))
+  Object.values(PROVIDER_MODEL_GROUPS).flatMap((groups) =>
+    groups.flatMap((group) => group.models.map((item) => item.value))
+  )
 );
 
 const EMPTY_STAGE_MODELS: StageModels = {
@@ -263,6 +318,73 @@ const EMPTY_STAGE_MODELS: StageModels = {
   stage2: "",
   stage3: ""
 };
+
+const EMPTY_STAGE_PROVIDERS: StageProviders = {
+  stage1: "",
+  stage2: "",
+  stage3: ""
+};
+
+const WORK_PROFILES: Record<
+  WorkProfileId,
+  {
+    label: string;
+    description: string;
+    stageProviders: StageProviders;
+    stageModels: StageModels;
+  }
+> = {
+  default: {
+    label: "Default",
+    description: "Menor costo. Recomendado para pruebas y archivos simples.",
+    stageProviders: {
+      stage1: "deepseek",
+      stage2: "deepseek",
+      stage3: "gemini"
+    },
+    stageModels: {
+      stage1: "deepseek-v4-flash",
+      stage2: "deepseek-v4-flash",
+      stage3: "gemini-2.5-flash"
+    }
+  },
+  medio: {
+    label: "Medio",
+    description: "Mas estable. Mejor equilibrio para la mayoria de documentos.",
+    stageProviders: {
+      stage1: "gemini",
+      stage2: "gemini",
+      stage3: "gemini"
+    },
+    stageModels: {
+      stage1: "gemini-2.5-flash-lite",
+      stage2: "gemini-2.5-flash-lite",
+      stage3: "gemini-2.5-flash"
+    }
+  },
+  avanzado: {
+    label: "Avanzado",
+    description: "Mas lento y experimental. Util para documentos tecnicos medianos.",
+    stageProviders: {
+      stage1: "deepseek",
+      stage2: "deepseek",
+      stage3: "gemini"
+    },
+    stageModels: {
+      stage1: "deepseek-v4-pro",
+      stage2: "deepseek-v4-pro",
+      stage3: "gemini-2.5-flash"
+    }
+  },
+  manual: {
+    label: "Manual",
+    description: "Configuracion personalizada por etapa.",
+    stageProviders: EMPTY_STAGE_PROVIDERS,
+    stageModels: EMPTY_STAGE_MODELS
+  }
+};
+
+const VISIBLE_WORK_PROFILES: WorkProfileId[] = ["default", "medio", "avanzado", "manual"];
 
 const INITIAL_PROGRESS_STEPS: ProgressStep[] = [
   {
@@ -286,6 +408,7 @@ const STAGE3_PROGRESS_STEPS: ProgressStep[] = [
 ];
 
 function Home() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const urlOdooProjectId = useMemo(() => searchParams.get("odooProjectId")?.trim() || undefined, [searchParams]);
   const urlAnalysisId = useMemo(() => searchParams.get("analysisId")?.trim() || undefined, [searchParams]);
@@ -307,20 +430,24 @@ function Home() {
   const [processStartedAt, setProcessStartedAt] = useState<number | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [stageTiming, setStageTiming] = useState<StageTiming>({});
-  const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("");
+  const [geminiApiKey, setGeminiApiKey] = useState("");
+  const [deepseekApiKey, setDeepSeekApiKey] = useState("");
+  const [provider, setProvider] = useState<AiProvider>("gemini");
+  const [geminiModel, setGeminiModel] = useState(getFirstProviderModel("gemini"));
+  const [deepseekModel, setDeepSeekModel] = useState(getFirstProviderModel("deepseek"));
+  const [workProfile, setWorkProfile] = useState<WorkProfileId>("manual");
+  const [stageProviders, setStageProviders] = useState<StageProviders>(EMPTY_STAGE_PROVIDERS);
   const [stageModels, setStageModels] = useState<StageModels>(EMPTY_STAGE_MODELS);
   const [savedConfig, setSavedConfig] = useState<ConfigResponse | null>(null);
   const [configMessage, setConfigMessage] = useState<string | null>(null);
-  const [configBusy, setConfigBusy] = useState<"save" | "test" | null>(null);
+  const [configBusy, setConfigBusy] = useState<"save" | "test-gemini" | "test-deepseek" | null>(null);
   const [financialBusy, setFinancialBusy] = useState(false);
   const [financialMessage, setFinancialMessage] = useState<string | null>(null);
-  const [financialCalculationId, setFinancialCalculationId] = useState<string | null>(null);
   const [financialIngestPreview, setFinancialIngestPreview] = useState<FinancialIngestPayload | null>(null);
   const [financialPreviewLoading, setFinancialPreviewLoading] = useState(false);
   const [financialPreviewError, setFinancialPreviewError] = useState<string | null>(null);
   const [runs, setRuns] = useState<HistoricalRun[]>([]);
-  const [historyOpen, setHistoryOpen] = useState(true);
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [historyMessage, setHistoryMessage] = useState<string | null>(null);
   const [openingRunId, setOpeningRunId] = useState<string | null>(null);
   const [historicalRun, setHistoricalRun] = useState<HistoricalRun | null>(null);
@@ -328,8 +455,25 @@ function Home() {
   const [activeAnalysisId, setActiveAnalysisId] = useState<string | null>(null);
   const [activeAnalysisCode, setActiveAnalysisCode] = useState<string | null>(null);
   const [ignoreUrlAnalysisId, setIgnoreUrlAnalysisId] = useState(false);
+  const [resultsTab, setResultsTab] = useState<ResultsTabId>("stage1");
+  const [configModalOpen, setConfigModalOpen] = useState(false);
 
   const isHistoricalMode = useMemo(() => historicalRun !== null, [historicalRun]);
+  const setManualStageProvider = useMemo(
+    () =>
+      setManualStageProviderFactory(
+        setStageProviders,
+        setStageModels,
+        setWorkProfile,
+        geminiModel || getFirstProviderModel("gemini"),
+        deepseekModel || getFirstProviderModel("deepseek")
+      ),
+    [geminiModel, deepseekModel]
+  );
+  const setManualStageModel = useMemo(
+    () => setManualStageModelFactory(setStageProviders, setStageModels, setWorkProfile),
+    []
+  );
 
   function appendStage1FormContext(formData: FormData) {
     if (urlOdooProjectId) {
@@ -347,6 +491,28 @@ function Home() {
   }, []);
 
   useEffect(() => {
+    if (!configModalOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setConfigModalOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [configModalOpen]);
+
+  useEffect(() => {
     if (!stage3?.result) {
       setFinancialIngestPreview(null);
       setFinancialPreviewError(null);
@@ -358,7 +524,6 @@ function Home() {
     setFinancialPreviewLoading(true);
     setFinancialPreviewError(null);
     setFinancialMessage(null);
-    setFinancialCalculationId(null);
 
     void fetch("/api/financial-offer/preview", {
       method: "POST",
@@ -430,7 +595,19 @@ function Home() {
 
     if (response.ok) {
       setSavedConfig(payload);
-      setModel(payload.model ?? "");
+      setProvider(payload.provider ?? "gemini");
+      setGeminiModel(
+        payload.geminiModel ||
+          getModelFromProviderRef(payload.model, "gemini") ||
+          getFirstProviderModel("gemini")
+      );
+      setDeepSeekModel(
+        payload.deepseekModel ||
+          getModelFromProviderRef(payload.model, "deepseek") ||
+          getFirstProviderModel("deepseek")
+      );
+      setWorkProfile(normalizeWorkProfile(payload.workProfile));
+      setStageProviders(normalizeStageProviders(payload.stageProviders));
       setStageModels(normalizeStageModels(payload.stageModels));
     } else {
       setConfigMessage(payload.error ?? "No se pudo leer la configuración.");
@@ -482,8 +659,9 @@ function Home() {
     setStageTiming({ totalMs: Number(nextRun.totalDurationMs ?? 0) });
     setProgress({ phase: "idle", percent: 0, label: "Listo" });
     setProgressSteps(INITIAL_PROGRESS_STEPS);
-    setHistoryOpen(false);
+    setSidebarExpanded(false);
     setOpeningRunId(null);
+    setResultsTab("stage1");
   }
 
   function startNewRun() {
@@ -503,20 +681,31 @@ function Home() {
     setProgress({ phase: "idle", percent: 0, label: "Listo" });
     setProgressSteps(INITIAL_PROGRESS_STEPS);
     setFinancialMessage(null);
-    setFinancialCalculationId(null);
     setActiveAnalysisId(null);
     setActiveAnalysisCode(null);
     setIgnoreUrlAnalysisId(true);
+    setResultsTab("stage1");
   }
 
   async function saveConfig() {
     setConfigBusy("save");
     setConfigMessage(null);
+    const nextStageProviders = normalizeStageProvidersForSave(stageProviders);
 
     const response = await fetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ apiKey, model, stageModels })
+      body: JSON.stringify({
+        geminiApiKey,
+        deepseekApiKey,
+        provider,
+        geminiModel,
+        deepseekModel,
+        model: buildProviderModelRef(provider, getProviderDefaultModel(provider, geminiModel, deepseekModel)),
+        workProfile,
+        stageProviders: nextStageProviders,
+        stageModels
+      })
     });
     const payload = (await response.json()) as ConfigResponse;
 
@@ -524,35 +713,66 @@ function Home() {
       setConfigMessage(payload.error ?? "No se pudo guardar la configuración.");
     } else {
       setSavedConfig(payload);
-      setApiKey("");
+      setGeminiApiKey("");
+      setDeepSeekApiKey("");
       setConfigMessage("Configuración guardada.");
     }
 
     setConfigBusy(null);
   }
 
-  async function testConfig() {
-    setConfigBusy("test");
+  function applyWorkProfile(profile: WorkProfileId) {
+    setWorkProfile(profile);
+
+    if (profile === "manual") {
+      return;
+    }
+
+    const preset = WORK_PROFILES[profile];
+    setStageProviders(preset.stageProviders);
+    setStageModels(preset.stageModels);
+
+    const presetGeminiModel = Object.values(preset.stageModels).find((value) => value.startsWith("gemini-"));
+    const presetDeepSeekModel = Object.values(preset.stageModels).find((value) => value.startsWith("deepseek-"));
+
+    if (presetGeminiModel) {
+      setGeminiModel((current) => current || presetGeminiModel);
+    }
+
+    if (presetDeepSeekModel) {
+      setDeepSeekModel((current) => current || presetDeepSeekModel);
+    }
+  }
+
+  async function testProviderConfig(nextProvider: AiProvider) {
+    setConfigBusy(nextProvider === "deepseek" ? "test-deepseek" : "test-gemini");
     setConfigMessage(null);
+    const modelToTest = getProviderDefaultModel(nextProvider, geminiModel, deepseekModel);
+    const hasKey =
+      nextProvider === "deepseek"
+        ? Boolean(deepseekApiKey.trim() || savedConfig?.hasDeepSeekApiKey)
+        : Boolean(geminiApiKey.trim() || savedConfig?.hasGeminiApiKey);
+
+    if (!hasKey || !modelToTest.trim()) {
+      setConfigMessage(
+        `${PROVIDER_LABELS[nextProvider]}: guarda o pega una API key y selecciona un modelo antes de probar.`
+      );
+      setConfigBusy(null);
+      return;
+    }
 
     const response = await fetch("/api/config/test", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ apiKey, model })
+      body: JSON.stringify({
+        geminiApiKey: nextProvider === "gemini" ? geminiApiKey : "",
+        deepseekApiKey: nextProvider === "deepseek" ? deepseekApiKey : "",
+        model: buildProviderModelRef(nextProvider, modelToTest)
+      })
     });
     const payload = (await response.json()) as ConfigResponse;
 
-    setConfigMessage(
-      response.ok
-        ? [
-            payload.message ?? `Conexion exitosa con el motor IA (${getModelDisplayName(payload.model)}).`,
-            payload.usage ? `Tokens prueba: ${payload.usage.totalTokens.toLocaleString("es-CO")}.` : null,
-            payload.cost ? `Costo est.: ${formatUsd(payload.cost.totalUsd)}.` : null
-          ]
-            .filter(Boolean)
-            .join(" ")
-        : buildUserErrorMessage(payload, "No se pudo conectar con el motor IA.")
-    );
+    setConfigMessage(formatConnectionTestResult({ provider: nextProvider, responseOk: response.ok, payload }));
     setConfigBusy(null);
   }
 
@@ -839,7 +1059,6 @@ function Home() {
 
     setFinancialBusy(true);
     setFinancialMessage(null);
-    setFinancialCalculationId(null);
 
     try {
       const response = await fetch("/api/financial-offer/import", {
@@ -867,11 +1086,15 @@ function Home() {
       }
 
       const calcId = payload.calculationId ?? payload.upstream?.calculationId ?? null;
-      setFinancialCalculationId(typeof calcId === "string" ? calcId : null);
-      setFinancialMessage(
-        "Listo: el cálculo quedó en Simulador Financiero. Usá el botón de abajo para abrirlo aquí mismo (vista integrada en /finanzas)."
-      );
+      const calcIdStr = typeof calcId === "string" && calcId.trim() ? calcId.trim() : null;
       void loadRuns();
+      if (calcIdStr) {
+        router.push(`/finanzas?calc=${encodeURIComponent(calcIdStr)}`);
+        return;
+      }
+      setFinancialMessage(
+        "El envío fue aceptado pero no se recibió un ID de cálculo. Revisá Simulador Financiero o la respuesta técnica."
+      );
     } catch {
       setFinancialMessage("No se pudo conectar con Simulador Financiero (red o URL del servidor).");
     } finally {
@@ -880,393 +1103,489 @@ function Home() {
   }
 
   return (
-    <main className="page">
-      <section className="topbar">
-        <div>
-          <p className="eyebrow">Suite de análisis técnico y financiero · Extracción de datos estratégicos</p>
-          <h1>Extracción de datos estratégicos</h1>
-          {urlOdooProjectId || urlAnalysisId || activeAnalysisCode ? (
-            <p className="muted contextLine">
-              {activeAnalysisCode ? (
-                <>
-                  Análisis activo: <code className="inlineCode">{activeAnalysisCode}</code>
-                  {activeAnalysisId ? (
-                    <>
-                      {" "}
-                      (<span className="muted">id {shortId(activeAnalysisId)}</span>)
-                    </>
-                  ) : null}
-                </>
-              ) : null}
-              {urlOdooProjectId ? (
-                <span>
-                  {activeAnalysisCode ? " · " : ""}
-                  Proyecto Odoo (URL): <code className="inlineCode">{urlOdooProjectId}</code>
-                </span>
-              ) : null}
-              {urlAnalysisId && !activeAnalysisCode ? (
-                <span>
-                  {(urlOdooProjectId || activeAnalysisCode) ? " · " : ""}
-                  Análisis predefinido (URL): <code className="inlineCode">{shortId(urlAnalysisId)}</code>
-                </span>
-              ) : null}
-            </p>
-          ) : null}
-        </div>
-        <nav className="topbarNav" aria-label="Navegación principal">
-          <a className="topbarNavLink" href="#historial-pipeline">
-            Sesiones guardadas
-          </a>
-          <a className="topbarNavLink" href="/finanzas">
-            Simulador Financiero
-          </a>
-        </nav>
-      </section>
-
-      <section className="panel">
-        <div className="sectionHeader">
-          <h2>Configuración del motor IA</h2>
-          {savedConfig?.hasApiKey ? (
-            <span className="badge">API key guardada {savedConfig.maskedApiKey}</span>
-          ) : (
-            <span className="badge">Sin API key</span>
-          )}
-        </div>
-
-        <div className="configGrid">
-          <label>
-            <span>API key</span>
-            <input
-              type="password"
-              value={apiKey}
-              placeholder={savedConfig?.hasApiKey ? "Dejar vacío para conservar la guardada" : "Pegá tu API key"}
-              onChange={(event) => setApiKey(event.target.value)}
-            />
-          </label>
-
-          <label>
-            <span>Modelo del motor IA</span>
-            <select
-              value={model}
-              onChange={(event) => setModel(event.target.value)}
-            >
-              <option value="">Selecciona un modelo</option>
-              {model && !KNOWN_AI_MODELS.has(model) ? (
-                <option value={model}>{getModelDisplayName(model)} (guardado)</option>
-              ) : null}
-              {AI_MODEL_GROUPS.map((group) => (
-                <optgroup key={group.label} label={group.label}>
-                  {group.models.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="stageConfigBlock">
-          <p className="muted">
-            Modelo por defecto para todo el flujo. Opcionalmente podés escoger otro por etapa.
-          </p>
-          <div className="stageModelGrid">
-            <StageModelSelect
-              label="Etapa 1"
-              value={stageModels.stage1}
-              defaultModel={model}
-              onChange={(value) => setStageModels((current) => ({ ...current, stage1: value }))}
-            />
-            <StageModelSelect
-              label="Etapa 2"
-              value={stageModels.stage2}
-              defaultModel={model}
-              onChange={(value) => setStageModels((current) => ({ ...current, stage2: value }))}
-            />
-            <StageModelSelect
-              label="Etapa 3"
-              value={stageModels.stage3}
-              defaultModel={model}
-              onChange={(value) => setStageModels((current) => ({ ...current, stage3: value }))}
-            />
-          </div>
-        </div>
-
-        <div className="actions">
-          <button type="button" onClick={saveConfig} disabled={configBusy !== null}>
-            {configBusy === "save" ? "Guardando..." : "Guardar configuración"}
-          </button>
-          <button type="button" className="secondary" onClick={testConfig} disabled={configBusy !== null}>
-            {configBusy === "test" ? "Probando..." : "Probar conexión"}
-          </button>
-        </div>
-
-        {configMessage ? <div className="notice">{configMessage}</div> : null}
-      </section>
-
-      <HistorySection
-        isOpen={historyOpen}
+    <main className="appShell">
+      <SessionsSidebar
+        expanded={sidebarExpanded}
         message={historyMessage}
-        runs={runs}
-        openingRunId={openingRunId}
+        onExpandedChange={setSidebarExpanded}
         onOpenRun={(id) => void openHistoricalRun(id)}
         onRefresh={() => void loadRuns()}
-        onToggle={() => setHistoryOpen((current) => !current)}
+        openingRunId={openingRunId}
+        runs={runs}
       />
 
-      <section className="panel">
-        {historicalRun ? (
-          <div className="historicalHeader">
-            <div>
-              <label className="fileLabel">Sesión guardada (solo lectura)</label>
-              <p className="muted">
-                {formatDateTime(historicalRun.updatedAt)} - {getRunDisplayStatus(historicalRun).label} -{" "}
-                {shortId(historicalRun.runId)}
-              </p>
+      <div className="workspaceColumn">
+        <div className="workspaceInner">
+          <header className="workspaceTopbar">
+            <div className="workspaceTopbarMain">
+              <h1 className="workspaceH1">Extracción de datos estratégicos</h1>
+              {urlOdooProjectId || urlAnalysisId || activeAnalysisCode ? (
+                <p className="muted contextLine contextLineCompact">
+                  {activeAnalysisCode ? (
+                    <>
+                      <code className="inlineCode">{activeAnalysisCode}</code>
+                      {activeAnalysisId ? <span className="muted"> · {shortId(activeAnalysisId)}</span> : null}
+                    </>
+                  ) : null}
+                  {urlOdooProjectId ? (
+                    <span>
+                      {activeAnalysisCode ? " · " : null}
+                      <code className="inlineCode">{urlOdooProjectId}</code>
+                    </span>
+                  ) : null}
+                  {urlAnalysisId && !activeAnalysisCode ? (
+                    <span>
+                      {(urlOdooProjectId || activeAnalysisCode) ? " · " : null}
+                      <code className="inlineCode">{shortId(urlAnalysisId)}</code>
+                    </span>
+                  ) : null}
+                </p>
+              ) : null}
             </div>
-            <button type="button" onClick={startNewRun}>
-              Nuevo análisis
-            </button>
-          </div>
-        ) : (
-          <>
-            <label className="fileLabel" htmlFor="document-file">
-              Archivo
-            </label>
-            <input
-              key={fileInputKey}
-              id="document-file"
-              type="file"
-              accept=".txt,.csv,.xlsx,.docx,.pdf"
-              onChange={(event) => {
-                const nextFile = event.target.files?.[0] ?? null;
-                setFile(nextFile);
-                setError(null);
-                if (nextFile) {
-                  void runPipeline(nextFile);
-                }
-              }}
+            <div className="topbarActions">
+              <nav className="topbarNav" aria-label="Navegación principal">
+                <button
+                  type="button"
+                  className="topbarNavButton"
+                  onClick={() => setSidebarExpanded(true)}
+                >
+                  Historial
+                </button>
+                <a className="topbarNavLink" href="/finanzas">
+                  Simulador
+                </a>
+              </nav>
+              <button
+                type="button"
+                className="iconGearButton"
+                aria-label="Abrir configuración del motor IA"
+                title="Configuración del motor IA"
+                onClick={() => {
+                  setConfigModalOpen(true);
+                  void loadConfig();
+                }}
+              >
+                <svg className="iconGearSvg" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"
+                  />
+                </svg>
+              </button>
+            </div>
+          </header>
+
+          <section className="panel workspacePanel">
+            {historicalRun ? (
+              <div className="historicalHeader">
+                <div className="historicalHeaderMain">
+                  <div className="fileLabelRow">
+                    <span className="fileLabel">Sesión guardada</span>
+                    <InfoTip
+                      label="Lectura"
+                      text="Solo lectura. Usá «Nuevo análisis» para procesar otro archivo."
+                    />
+                  </div>
+                  <p className="muted metaOneLine">
+                    {formatDateTime(historicalRun.updatedAt)} · {getRunDisplayStatus(historicalRun).label} ·{" "}
+                    {shortId(historicalRun.runId)}
+                  </p>
+                </div>
+                <button type="button" onClick={startNewRun}>
+                  Nuevo análisis
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="fileLabelRow">
+                  <label className="fileLabel" htmlFor="document-file">
+                    Archivo
+                  </label>
+                  <InfoTip
+                    label="Flujo"
+                    text="Al elegir un archivo se ejecutan Etapa 1 y 2 automáticamente. La Etapa 3 la disparás vos con el botón correspondiente."
+                  />
+                </div>
+                <input
+                  key={fileInputKey}
+                  id="document-file"
+                  type="file"
+                  accept=".txt,.csv,.xlsx,.docx,.pdf"
+                  onChange={(event) => {
+                    const nextFile = event.target.files?.[0] ?? null;
+                    setFile(nextFile);
+                    setError(null);
+                    if (nextFile) {
+                      void runPipeline(nextFile);
+                    }
+                  }}
+                />
+                {file ? <p className="muted fileNameHint">{file.name}</p> : null}
+              </>
+            )}
+
+            <div className="actions">
+              <button type="button" onClick={() => file && runPipeline(file)} disabled={isHistoricalMode || loading !== null || !file}>
+                {loading === "pipeline" ? "Procesando..." : "Reintentar flujo completo"}
+              </button>
+              <button type="button" className="secondary" onClick={runStage1} disabled={isHistoricalMode || loading !== null}>
+                {loading === "stage1" ? "Extrayendo..." : "1. Extraer y normalizar"}
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={runStage2}
+                disabled={isHistoricalMode || loading !== null || !stage1?.result}
+              >
+                {loading === "stage2" ? "Analizando..." : "2. Analizar técnicamente"}
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={runStage3}
+                disabled={isHistoricalMode || loading !== null || !stage2?.result}
+              >
+                {loading === "stage3" ? "Cotizando..." : "3. Cotizar precios"}
+              </button>
+            </div>
+
+            <ProcessingMonitor
+              elapsedMs={elapsedMs}
+              progress={progress}
+              steps={progressSteps}
+              timing={stageTiming}
             />
-            {file ? <p className="muted">{file.name}</p> : null}
-            <p className="muted">
-              Al cargar un archivo, la app ejecuta automáticamente Etapa 1 y Etapa 2. La Etapa 3 se ejecuta manualmente.
-            </p>
-          </>
-        )}
 
-        <div className="actions">
-          <button type="button" onClick={() => file && runPipeline(file)} disabled={isHistoricalMode || loading !== null || !file}>
-            {loading === "pipeline" ? "Procesando..." : "Reintentar flujo completo"}
-          </button>
-          <button type="button" className="secondary" onClick={runStage1} disabled={isHistoricalMode || loading !== null}>
-            {loading === "stage1" ? "Extrayendo..." : "1. Extraer y normalizar"}
-          </button>
-          <button
-            type="button"
-            className="secondary"
-            onClick={runStage2}
-            disabled={isHistoricalMode || loading !== null || !stage1?.result}
-          >
-            {loading === "stage2" ? "Analizando..." : "2. Analizar técnicamente"}
-          </button>
-          <button
-            type="button"
-            className="secondary"
-            onClick={runStage3}
-            disabled={isHistoricalMode || loading !== null || !stage2?.result}
-          >
-            {loading === "stage3" ? "Cotizando..." : "3. Cotizar precios"}
-          </button>
+            {pipelineStatus ? <div className="notice">{pipelineStatus}</div> : null}
+            {error ? <div className="error">{error}</div> : null}
+            {runId ? <p className="muted runIdHint">Run: {shortId(runId)}</p> : null}
+          </section>
+
+          <StageResultsWorkspace
+            activeTab={resultsTab}
+            onTabChange={setResultsTab}
+            stage1={stage1}
+            stage2={stage2}
+            stage3={stage3}
+            ingest={{
+              stage3Done: Boolean(stage3?.result),
+              ingest: financialIngestPreview,
+              loading: financialPreviewLoading,
+              previewError: financialPreviewError,
+              financialBusy,
+              financialMessage,
+              onSend: () => void sendStage3ToFinancialOffer(),
+              canSend:
+                Boolean(stage3?.result) &&
+                !financialPreviewLoading &&
+                !financialPreviewError &&
+                Boolean(financialIngestPreview?.items?.length)
+            }}
+          />
         </div>
+      </div>
 
-        {historicalRun ? (
-          <p className="muted">Esta sesión está en modo lectura. Para procesar otro archivo usá «Nuevo análisis».</p>
-        ) : null}
+      {configModalOpen ? (
+        <div
+          className="configDrawerBackdrop"
+          role="presentation"
+          onClick={() => setConfigModalOpen(false)}
+        >
+          <div
+            className="configDrawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="config-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="configDrawerHeader">
+              <h2 id="config-modal-title">Configuración</h2>
+              <button
+                type="button"
+                className="configDrawerClose"
+                aria-label="Cerrar configuración"
+                onClick={() => setConfigModalOpen(false)}
+              >
+                ×
+              </button>
+            </div>
 
-        <ProcessingMonitor
-          elapsedMs={elapsedMs}
-          progress={progress}
-          steps={progressSteps}
-          timing={stageTiming}
-        />
+            <div className="sectionBadges configDrawerBadges">
+              {savedConfig?.hasGeminiApiKey ? (
+                <span className="badge">Google guardada {savedConfig.maskedGeminiApiKey}</span>
+              ) : (
+                <span className="badge">Google sin key</span>
+              )}
+              {savedConfig?.hasDeepSeekApiKey ? (
+                <span className="badge">DeepSeek guardada {savedConfig.maskedDeepSeekApiKey}</span>
+              ) : (
+                <span className="badge">DeepSeek sin key</span>
+              )}
+            </div>
 
-        {pipelineStatus ? <div className="notice">{pipelineStatus}</div> : null}
-        {error ? <div className="error">{error}</div> : null}
-        {runId ? <p className="muted">Run tecnico: {runId}</p> : null}
-      </section>
+            <div className="configDrawerSection">
+              <div className="configDrawerSectionHead">
+                <h3 className="configDrawerSectionTitle">Motores IA</h3>
+                <InfoTip
+                  label="Almacenamiento"
+                  text="Se guardan en .env.local del servidor (GEMINI_*, DEEPSEEK_*, AI_PROVIDER_*, AI_MODEL_*)."
+                />
+              </div>
+              <div className="configGrid">
+                <label>
+                  <span>API key Google</span>
+                  <input
+                    type="password"
+                    value={geminiApiKey}
+                    placeholder={savedConfig?.hasGeminiApiKey ? "Dejar vacío para conservar la guardada" : "Pegá tu API key"}
+                    onChange={(event) => setGeminiApiKey(event.target.value)}
+                  />
+                </label>
 
-      <StageSection title="Resultado Etapa 1" response={stage1} />
-      <StageSection title="Resultado Etapa 2" response={stage2} />
-      <StageSection title="Resultado Etapa 3" response={stage3} />
+                <label>
+                  <span>API key DeepSeek</span>
+                  <input
+                    type="password"
+                    value={deepseekApiKey}
+                    placeholder={savedConfig?.hasDeepSeekApiKey ? "Dejar vacío para conservar la guardada" : "Pegá tu API key"}
+                    onChange={(event) => setDeepSeekApiKey(event.target.value)}
+                  />
+                </label>
+              </div>
 
-      <IngestStageSection
-        stage3Done={Boolean(stage3?.result)}
-        ingest={financialIngestPreview}
-        loading={financialPreviewLoading}
-        previewError={financialPreviewError}
-        financialBusy={financialBusy}
-        financialMessage={financialMessage}
-        financialCalculationId={financialCalculationId}
-        onSend={() => void sendStage3ToFinancialOffer()}
-        canSend={
-          Boolean(stage3?.result) &&
-          !financialPreviewLoading &&
-          !financialPreviewError &&
-          Boolean(financialIngestPreview?.items?.length)
-        }
-      />
+              <div className="providerModelGrid">
+                <ProviderModelSelect
+                  label="Modelo Google"
+                  provider="gemini"
+                  value={geminiModel}
+                  busy={configBusy === "test-gemini"}
+                  disabled={configBusy !== null}
+                  onChange={setGeminiModel}
+                  onTest={() => void testProviderConfig("gemini")}
+                />
+                <ProviderModelSelect
+                  label="Modelo DeepSeek"
+                  provider="deepseek"
+                  value={deepseekModel}
+                  busy={configBusy === "test-deepseek"}
+                  disabled={configBusy !== null}
+                  onChange={setDeepSeekModel}
+                  onTest={() => void testProviderConfig("deepseek")}
+                />
+              </div>
+            </div>
+
+            <div className="configDrawerSection">
+              <ProfileSelector value={workProfile} onChange={applyWorkProfile} />
+            </div>
+
+            <div className="configDrawerSection">
+              <div className="configDrawerSectionHead">
+                <h3 className="configDrawerSectionTitle">Proveedor y modelo por etapa</h3>
+                <InfoTip
+                  label="Perfiles"
+                  text="Cada etapa puede usar proveedor y modelo distintos. Etapa 3 no permite DeepSeek porque requiere búsqueda web verificable."
+                />
+              </div>
+              <div className="stageManualWrap">
+                <table className="stageManualTable">
+                  <thead>
+                    <tr>
+                      <th>Etapa</th>
+                      <th>Proveedor</th>
+                      <th>Modelo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(["stage1", "stage2", "stage3"] as Array<keyof StageProviders>).map((stageId) => {
+                      const selectedProvider =
+                        stageId === "stage3" && stageProviders[stageId] === "deepseek"
+                          ? "gemini"
+                          : getCheckedProvider(stageProviders[stageId]);
+                      const selectedModel =
+                        stageModels[stageId] ||
+                        getProviderDefaultModel(selectedProvider, geminiModel, deepseekModel);
+                      return (
+                        <tr key={stageId}>
+                          <th scope="row">{stageId.toUpperCase().replace("STAGE", "Etapa ")}</th>
+                          <td>
+                            <select
+                              value={selectedProvider}
+                              onChange={(event) =>
+                                setManualStageProvider(stageId, event.target.value as AiProvider)
+                              }
+                            >
+                              <option value="deepseek" disabled={stageId === "stage3"}>
+                                DeepSeek
+                              </option>
+                              <option value="gemini">Google</option>
+                            </select>
+                          </td>
+                          <td>
+                            <StageModelPicker
+                              label={`Modelo ${stageId.replace("stage", "Etapa ")}`}
+                              provider={selectedProvider}
+                              value={stageModels[stageId]}
+                              defaultModel={getProviderDefaultModel(selectedProvider, geminiModel, deepseekModel)}
+                              onChange={(val) => setManualStageModel(stageId, val)}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {stageProviders.stage3 === "deepseek" ? (
+                <p className="notice warningNotice">
+                  Etapa 3 necesita búsqueda web verificable. Seleccioná Google para Etapa 3 antes de cotizar.
+                </p>
+              ) : null}
+            </div>
+
+            <div className="configDrawerSection">
+              <div className="configDrawerSectionHead">
+                <h3 className="configDrawerSectionTitle">Proveedor por defecto</h3>
+              </div>
+              <div className="configGrid">
+                <label>
+                  <span>Proveedor base</span>
+                  <select value={provider} onChange={(event) => setProvider(event.target.value as AiProvider)}>
+                    <option value="gemini">Google</option>
+                    <option value="deepseek">DeepSeek</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div className="actions">
+              <button type="button" onClick={saveConfig} disabled={configBusy !== null}>
+                {configBusy === "save" ? "Guardando..." : "Guardar configuración"}
+              </button>
+            </div>
+
+            {configMessage ? <div className="notice">{configMessage}</div> : null}
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
 
-function HistorySection({
-  isOpen,
+function InfoTip({ label, text }: { label: string; text: string }) {
+  const full = `${label}: ${text}`;
+
+  return (
+    <span className="infoTip" title={full} role="img" aria-label={full}>
+      ℹ️
+    </span>
+  );
+}
+
+function SessionsSidebar({
+  expanded,
+  onExpandedChange,
   message,
   runs,
   openingRunId,
   onOpenRun,
-  onRefresh,
-  onToggle
+  onRefresh
 }: {
-  isOpen: boolean;
+  expanded: boolean;
+  onExpandedChange: (open: boolean) => void;
   message: string | null;
   runs: HistoricalRun[];
   openingRunId: string | null;
   onOpenRun: (runId: string) => void;
   onRefresh: () => void;
-  onToggle: () => void;
 }) {
   return (
-    <section className="panel" id="historial-pipeline">
-      <div className="sectionHeader stageHeader">
-        <div className="stageHeaderTitle">
+    <aside
+      className={`sessionsSidebar ${expanded ? "isExpanded" : "isCollapsed"}`}
+      id="session-sidebar"
+      aria-label="Historial de sesiones"
+    >
+      <div className="sessionsSidebarToolbar">
+        {expanded ? (
+          <>
+            <h2 className="sessionsSidebarHeading">Sesiones</h2>
+            <div className="sessionsSidebarToolbarActions">
+              <button
+                className="sessionsIconBtn"
+                onClick={() => void onRefresh()}
+                title="Actualizar lista"
+                type="button"
+              >
+                ⟳
+              </button>
+              <button
+                aria-label="Contraer panel de historial"
+                className="sessionsIconBtn"
+                onClick={() => onExpandedChange(false)}
+                title="Contraer"
+                type="button"
+              >
+                ⟨
+              </button>
+            </div>
+          </>
+        ) : (
           <button
-            aria-expanded={isOpen}
-            aria-label={isOpen ? "Ocultar lista" : "Mostrar lista"}
-            className="sectionToggle"
-            onClick={onToggle}
+            aria-expanded={false}
+            aria-label="Abrir historial de sesiones"
+            className="sessionsCollapsedTrigger"
+            onClick={() => onExpandedChange(true)}
+            title="Historial"
             type="button"
           >
-            {isOpen ? "-" : "+"}
+            <svg className="sessionsListIcon" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"
+              />
+            </svg>
           </button>
-          <div>
-            <h2>Sesiones guardadas</h2>
-            <p className="muted historySubtitle">
-              Cada fila es una ejecución del flujo por etapas (Etapas 1-3) persistida en esta instalación. Pronto podrás enlazarla a un proyecto u
-              oferta comercial.
-            </p>
-          </div>
-        </div>
-        <div className="sectionBadges">
-          <span className="badge">{runs.length} sesiones</span>
-          <button className="secondary miniButton" onClick={onRefresh} type="button">
-            Actualizar
-          </button>
-        </div>
+        )}
       </div>
 
-      {message ? <div className="error">{message}</div> : null}
-
-      {isOpen ? (
-        <>
+      {expanded ? (
+        <div className="sessionsSidebarBody">
+          {message ? <div className="error sessionsSidebarError">{message}</div> : null}
           {runs.length === 0 ? (
-            <p className="muted">Todavía no hay sesiones guardadas. Procesá un archivo para crear la primera.</p>
+            <p className="muted sessionsEmpty">Sin sesiones aún.</p>
           ) : (
-            <div className="historyTableWrap">
-              <table className="historyTable">
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Archivo</th>
-                    <th>Análisis</th>
-                    <th>Estado</th>
-                    <th>Variante</th>
-                    <th>Etapas/modelos</th>
-                    <th>Tokens</th>
-                    <th>Costo</th>
-                    <th>Tiempo</th>
-                    <th>Acción</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {runs.map((run) => {
-                    const displayStatus = getRunDisplayStatus(run);
+            <ul className="sessionsList">
+              {runs.map((run) => {
+                const displayStatus = getRunDisplayStatus(run);
 
-                    return (
-                      <tr key={run.runId}>
-                        <td>
-                          <strong>{formatDateTime(run.updatedAt)}</strong>
-                          <span className="muted smallText">{shortId(run.runId)}</span>
-                        </td>
-                        <td>
-                          <strong>{run.fileName ?? "Sin archivo"}</strong>
-                          {run.fileHash ? (
-                            <span className="muted smallText">Hash {run.fileHash.slice(0, 10)}</span>
-                          ) : null}
-                        </td>
-                        <td>
-                          {run.analysisCode ? (
-                            <>
-                              <strong>{run.analysisCode}</strong>
-                              {run.odooProjectId ? (
-                                <span className="muted smallText">Odoo proyecto: {run.odooProjectId}</span>
-                              ) : (
-                                <span className="muted smallText">Sin proyecto Odoo</span>
-                              )}
-                              {run.calculationId ? (
-                                <span className="muted smallText">Cálculo: {shortId(run.calculationId)}</span>
-                              ) : null}
-                            </>
-                          ) : (
-                            <span className="muted">-</span>
-                          )}
-                        </td>
-                        <td>
-                          <span className={`statusPill ${displayStatus.className}`}>{displayStatus.label}</span>
-                        </td>
-                        <td>{run.appVariant ?? "-"}</td>
-                        <td>
-                          <div className="stageMiniList">
-                            {(Array.isArray(run.stages) ? run.stages : []).map((stage) => (
-                              <span key={stage.stage}>
-                                {formatStageLabel(stage.stage)}: {stage.provider ?? "-"} /{" "}
-                                {getModelDisplayName(stage.model ?? undefined)}
-                                {stage.aiStatus
-                                  ? ` - ${formatAiCallStatus({
-                                      status: stage.aiStatus,
-                                      httpStatus: stage.providerHttpCode ?? undefined,
-                                      finishReason: stage.providerFinishReason ?? undefined
-                                    })}`
-                                  : ""}
-                                {stage.errorCode ? ` (${stage.errorCode})` : ""}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                        <td>{formatNumber(run.totalTokens)}</td>
-                        <td>{typeof run.totalUsd === "number" ? formatUsd(run.totalUsd) : ""}</td>
-                        <td>{formatDuration(Number(run.totalDurationMs ?? 0))}</td>
-                        <td>
-                          <button
-                            className="secondary miniButton"
-                            disabled={openingRunId !== null}
-                            onClick={() => onOpenRun(run.runId)}
-                            type="button"
-                          >
-                            {openingRunId === run.runId ? "Abriendo..." : "Abrir"}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                return (
+                  <li className="sessionsListItem" key={run.runId}>
+                    <div className="sessionsListItemTop">
+                      <span className="sessionsListDate">{formatDateTime(run.updatedAt)}</span>
+                      <span className={`statusPill ${displayStatus.className}`}>{displayStatus.label}</span>
+                    </div>
+                    <div className="sessionsListFile" title={run.fileName ?? undefined}>
+                      {run.fileName ?? "Sin archivo"}
+                    </div>
+                    {run.analysisCode ? (
+                      <div className="sessionsListMeta muted">{run.analysisCode}</div>
+                    ) : null}
+                    <button
+                      className="secondary sessionsOpenBtn"
+                      disabled={openingRunId !== null}
+                      onClick={() => onOpenRun(run.runId)}
+                      type="button"
+                    >
+                      {openingRunId === run.runId ? "Abriendo…" : "Abrir"}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
-        </>
+        </div>
       ) : null}
-    </section>
+    </aside>
   );
 }
 
@@ -1513,6 +1832,12 @@ function buildUserErrorMessage(payload: Pick<ApiResponse, "error" | "errorAction
   return payload.errorAction ? `${message} Que hacer: ${payload.errorAction}` : message;
 }
 
+function normalizeWorkProfile(value?: string): WorkProfileId {
+  return value === "default" || value === "medio" || value === "avanzado" || value === "manual"
+    ? value
+    : "manual";
+}
+
 function normalizeStageModels(value?: Partial<StageModels>): StageModels {
   return {
     stage1: typeof value?.stage1 === "string" ? value.stage1 : "",
@@ -1521,131 +1846,592 @@ function normalizeStageModels(value?: Partial<StageModels>): StageModels {
   };
 }
 
+function normalizeStageProviders(value?: Partial<StageProviders>): StageProviders {
+  return {
+    stage1: value?.stage1 === "deepseek" || value?.stage1 === "gemini" ? value.stage1 : "",
+    stage2: value?.stage2 === "deepseek" || value?.stage2 === "gemini" ? value.stage2 : "",
+    stage3: value?.stage3 === "deepseek" || value?.stage3 === "gemini" ? value.stage3 : ""
+  };
+}
+
+function normalizeStageProvidersForSave(value: StageProviders): StageProviders {
+  return {
+    stage1: getCheckedProvider(value.stage1),
+    stage2: getCheckedProvider(value.stage2),
+    stage3: value.stage3 === "deepseek" ? "gemini" : getCheckedProvider(value.stage3)
+  };
+}
+
+function getCheckedProvider(value: string | null | undefined): AiProvider {
+  return value === "deepseek" ? "deepseek" : "gemini";
+}
+
+function getProviderDefaultModel(provider: AiProvider, googleModel: string, deepSeekModel: string) {
+  return provider === "deepseek" ? deepSeekModel : googleModel;
+}
+
+function getFirstProviderModel(nextProvider: AiProvider) {
+  return PROVIDER_MODEL_GROUPS[nextProvider][0]?.models[0]?.value ?? "";
+}
+
+function getProviderFromRef(model?: string): AiProvider {
+  const normalized = normalizeModelValue(model ?? "");
+  if (normalized.startsWith("deepseek:") || normalized.startsWith("deepseek-")) {
+    return "deepseek";
+  }
+  return "gemini";
+}
+
+function getModelFromProviderRef(model: string | undefined, nextProvider: AiProvider) {
+  return getProviderFromRef(model) === nextProvider ? stripProvider(model ?? "") : "";
+}
+
+function buildProviderModelRef(nextProvider: AiProvider, model: string) {
+  return model.trim() ? `${nextProvider}:${stripProvider(model)}` : "";
+}
+
+function normalizeModelValue(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (/^(gemini|deepseek):/i.test(trimmed)) {
+    const [providerTag, ...rest] = trimmed.split(":");
+    return `${providerTag.toLowerCase()}:${rest.join(":").trim()}`;
+  }
+  if (/^deepseek-/i.test(trimmed)) {
+    return `deepseek:${trimmed}`;
+  }
+  return `gemini:${trimmed}`;
+}
+
+function stripProvider(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (/^(gemini|deepseek):/i.test(trimmed)) {
+    return trimmed.split(":").slice(1).join(":").trim();
+  }
+  return trimmed;
+}
+
+function setManualStageProviderFactory(
+  setStageProvidersState: Dispatch<SetStateAction<StageProviders>>,
+  setStageModelsState: Dispatch<SetStateAction<StageModels>>,
+  setWorkProfileState: Dispatch<SetStateAction<WorkProfileId>>,
+  geminiDefaultModel: string,
+  deepseekDefaultModel: string
+) {
+  return (stage: keyof StageProviders, nextProvider: AiProvider) => {
+    setWorkProfileState("manual");
+    setStageProvidersState((current) => ({ ...current, [stage]: nextProvider }));
+    setStageModelsState((current) => ({
+      ...current,
+      [stage]: getProviderDefaultModel(nextProvider, geminiDefaultModel, deepseekDefaultModel)
+    }));
+  };
+}
+
+function setManualStageModelFactory(
+  setStageProvidersState: Dispatch<SetStateAction<StageProviders>>,
+  setStageModelsState: Dispatch<SetStateAction<StageModels>>,
+  setWorkProfileState: Dispatch<SetStateAction<WorkProfileId>>
+) {
+  return (stage: keyof StageModels, model: string) => {
+    setWorkProfileState("manual");
+    setStageModelsState((current) => ({ ...current, [stage]: model }));
+    const providerForModel = getProviderFromRef(model);
+    setStageProvidersState((current) => ({ ...current, [stage]: providerForModel }));
+  };
+}
+
+function formatConnectionTestResult({
+  provider,
+  responseOk,
+  payload
+}: {
+  provider: AiProvider;
+  responseOk: boolean;
+  payload: ConfigResponse;
+}) {
+  const providerLabel = PROVIDER_LABELS[provider];
+  if (!responseOk) {
+    return `${providerLabel}: ${buildUserErrorMessage(payload, "No se pudo conectar con el motor IA.")}`;
+  }
+  return [
+    `${providerLabel}: ${payload.message ?? `conexion exitosa (${getModelDisplayName(payload.model)}).`}`,
+    payload.usage ? `Tokens prueba: ${payload.usage.totalTokens.toLocaleString("es-CO")}.` : null,
+    payload.cost ? `Costo est.: ${formatUsd(payload.cost.totalUsd)}.` : null
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function getModelDisplayName(model?: string) {
   if (!model) {
     return "modelo seleccionado";
   }
 
-  const known = AI_MODEL_GROUPS.flatMap((group) => group.models).find(
-    (item) => item.value === model
-  );
+  const modelWithoutProvider = stripProvider(model);
+  const known = Object.values(PROVIDER_MODEL_GROUPS)
+    .flatMap((groups) => groups.flatMap((group) => group.models))
+    .find((item) => item.value === modelWithoutProvider);
 
   if (known) {
     return known.label;
   }
 
-  return model
+  return modelWithoutProvider
     .replace(/^models\//i, "")
     .replace(/^gemini-/i, "")
+    .replace(/^deepseek-/i, "DeepSeek ")
     .replace(/-/g, " ");
 }
 
-function StageModelSelect({
+function geminiModelFlatSelectOptions() {
+  return AI_MODEL_GROUPS.flatMap((group) =>
+    group.models.map((item) => (
+      <option key={item.value} value={item.value}>
+        {group.label} — {item.label}
+      </option>
+    ))
+  );
+}
+
+function ProviderModelSelect({
   label,
+  provider,
+  value,
+  busy,
+  disabled,
+  onChange,
+  onTest
+}: {
+  label: string;
+  provider: AiProvider;
+  value: string;
+  busy: boolean;
+  disabled: boolean;
+  onChange: (value: string) => void;
+  onTest: () => void;
+}) {
+  return (
+    <div className="providerModelCard">
+      <label>
+        <span>{label}</span>
+        <select value={value} onChange={(event) => onChange(event.target.value)}>
+          <option value="">Selecciona un modelo {PROVIDER_LABELS[provider]}</option>
+          {PROVIDER_MODEL_GROUPS[provider].map((group) => (
+            <optgroup key={group.label} label={group.label}>
+              {group.models.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </label>
+      <button type="button" className="secondary miniButton" onClick={onTest} disabled={disabled}>
+        {busy ? "Probando..." : `Probar ${PROVIDER_LABELS[provider]}`}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Desplegable de modelos por etapa: no usa <select> nativo dentro del drawer con overflow,
+ * porque en Chrome/Windows el menú nativo queda recortado y parece “vacío”. El menú va en portal.
+ */
+function ProfileSelector({
+  value,
+  onChange
+}: {
+  value: WorkProfileId;
+  onChange: (value: WorkProfileId) => void;
+}) {
+  return (
+    <div className="profileBlock">
+      <div className="profileHeader">
+        <div>
+          <h3 className="configDrawerSectionTitle">Perfil de trabajo</h3>
+          <p className="muted profileIntro">Elegí una combinación predefinida de motores por etapa o ajustala manualmente.</p>
+        </div>
+        <span className="badge">{WORK_PROFILES[value].label}</span>
+      </div>
+      <div className="profileOptions">
+        {VISIBLE_WORK_PROFILES.map((profile) => (
+          <label className={`profileOption ${value === profile ? "selected" : ""}`} key={profile}>
+            <input
+              checked={value === profile}
+              name="work-profile"
+              onChange={() => onChange(profile)}
+              type="radio"
+              value={profile}
+            />
+            <span>
+              <strong>{WORK_PROFILES[profile].label}</strong>
+              <small>{WORK_PROFILES[profile].description}</small>
+            </span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StageModelPicker({
+  label,
+  provider,
   value,
   defaultModel,
   onChange
 }: {
   label: string;
+  provider: AiProvider;
   value: string;
   defaultModel: string;
   onChange: (value: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuBox, setMenuBox] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
+
+  const summary = useMemo(() => {
+    if (!value) {
+      return `Usar defecto (${getModelDisplayName(defaultModel)})`;
+    }
+    return `${getModelDisplayName(value)}${KNOWN_AI_MODELS.has(value) ? "" : " (guardado)"}`;
+  }, [value, defaultModel]);
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) {
+      setMenuBox(null);
+      return;
+    }
+    const rect = triggerRef.current.getBoundingClientRect();
+    const width = Math.max(rect.width, 260);
+    const left = Math.min(rect.left, Math.max(8, window.innerWidth - width - 8));
+    const below = rect.bottom + 4;
+    const maxHeight = Math.max(140, Math.min(window.innerHeight * 0.55, window.innerHeight - below - 10));
+    setMenuBox({ top: below, left, width, maxHeight });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+
+    function onPointerDown(event: MouseEvent | PointerEvent) {
+      const t = event.target as Node;
+      if (wrapRef.current?.contains(t) || menuRef.current?.contains(t)) {
+        return;
+      }
+      setOpen(false);
+    }
+
+    function onScroll() {
+      setOpen(false);
+    }
+
+    function onResize() {
+      setOpen(false);
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open]);
+
+  const menu =
+    open && menuBox
+      ? createPortal(
+          <div
+            ref={menuRef}
+            className="modelPickerMenuRoot"
+            style={{
+              position: "fixed",
+              top: menuBox.top,
+              left: menuBox.left,
+              width: menuBox.width,
+              maxHeight: menuBox.maxHeight,
+              overflowY: "auto",
+              zIndex: 500
+            }}
+          >
+            <ul className="modelPickerMenu" role="listbox" aria-label={`${label}: elegir modelo`}>
+              <li role="none">
+                <button
+                  type="button"
+                  className={`modelPickerOption${value === "" ? " modelPickerOptionActive" : ""}`}
+                  role="option"
+                  aria-selected={value === ""}
+                  onClick={() => {
+                    onChange("");
+                    setOpen(false);
+                  }}
+                >
+                  Usar defecto ({getModelDisplayName(defaultModel)})
+                </button>
+              </li>
+              {value && !KNOWN_AI_MODELS.has(value) ? (
+                <li role="none">
+                  <button
+                    type="button"
+                    className="modelPickerOption modelPickerOptionActive"
+                    role="option"
+                    aria-selected
+                    onClick={() => {
+                      onChange(value);
+                      setOpen(false);
+                    }}
+                  >
+                    {getModelDisplayName(value)} (guardado)
+                  </button>
+                </li>
+              ) : null}
+              {PROVIDER_MODEL_GROUPS[provider].map((group) => (
+                <Fragment key={group.label}>
+                  <li className="modelPickerGroupLabel" aria-hidden>
+                    {group.label}
+                  </li>
+                  {group.models.map((item) => (
+                    <li key={item.value} role="none">
+                      <button
+                        type="button"
+                        className={`modelPickerOption${value === item.value ? " modelPickerOptionActive" : ""}`}
+                        role="option"
+                        aria-selected={value === item.value}
+                        onClick={() => {
+                          onChange(item.value);
+                          setOpen(false);
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    </li>
+                  ))}
+                </Fragment>
+              ))}
+            </ul>
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
-    <label>
-      <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
-        <option value="">Usar defecto ({getModelDisplayName(defaultModel)})</option>
-        {value && !KNOWN_AI_MODELS.has(value) ? (
-          <option value={value}>{getModelDisplayName(value)} (guardado)</option>
-        ) : null}
-        {AI_MODEL_GROUPS.map((group) => (
-          <optgroup key={group.label} label={group.label}>
-            {group.models.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
-    </label>
+    <div className="modelPicker" ref={wrapRef}>
+      <span className="modelPickerLabel">{label}</span>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="modelPickerTrigger"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-label={`${label}: modelo del motor o usar el defecto global`}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {summary}
+      </button>
+      {menu}
+    </div>
   );
 }
 
-function StageSection({ title, response }: { title: string; response: ApiResponse | null }) {
-  const [isOpen, setIsOpen] = useState(true);
-  const itemCount = response?.result?.items?.length ?? 0;
-
-  useEffect(() => {
-    if (response) {
-      setIsOpen(true);
-    }
-  }, [response]);
+function StageResultsWorkspace({
+  activeTab,
+  onTabChange,
+  stage1,
+  stage2,
+  stage3,
+  ingest
+}: {
+  activeTab: ResultsTabId;
+  onTabChange: (tab: ResultsTabId) => void;
+  stage1: ApiResponse | null;
+  stage2: ApiResponse | null;
+  stage3: ApiResponse | null;
+  ingest: {
+    stage3Done: boolean;
+    ingest: FinancialIngestPayload | null;
+    loading: boolean;
+    previewError: string | null;
+    financialBusy: boolean;
+    financialMessage: string | null;
+    onSend: () => void;
+    canSend: boolean;
+  };
+}) {
+  const tabs: Array<{ id: ResultsTabId; label: string; hint: string }> = [
+    { id: "stage1", label: "Etapa 1", hint: "Extracción" },
+    { id: "stage2", label: "Etapa 2", hint: "Técnico" },
+    { id: "stage3", label: "Etapa 3", hint: "Cotización" },
+    { id: "stage4", label: "Etapa 4", hint: "Ingesta financiera" }
+  ];
 
   return (
-    <section className="panel">
-      <div className="sectionHeader stageHeader">
-        <div className="stageHeaderTitle">
-          <button
-            aria-expanded={isOpen}
-            aria-label={isOpen ? `Cerrar ${title}` : `Abrir ${title}`}
-            className="sectionToggle"
-            onClick={() => setIsOpen((current) => !current)}
-            type="button"
-          >
-            {isOpen ? "-" : "+"}
-          </button>
-          <h2>{title}</h2>
+    <div className="stageResultsBleed">
+      <section className="panel stageResultsPanel">
+        <div className="sectionHeader stageResultsPanelHeader">
+          <div className="stageResultsPanelTitleRow">
+            <h2 className="stageResultsPanelTitle">Resultados por etapa</h2>
+            <InfoTip
+              label="Tablas"
+              text="Una etapa por pestaña. El scroll largo va dentro de la tabla. Clic en una fila para ver texto completo en celdas truncadas."
+            />
+          </div>
         </div>
 
-        <div className="sectionBadges">
-          <span className="badge">{itemCount} items</span>
-          {response?.model ? (
-            <span className="badge">Motor IA: {getModelDisplayName(response.model)}</span>
-          ) : null}
-          {response?.usage ? (
-            <span className="badge">Tokens: {response.usage.totalTokens.toLocaleString("es-CO")}</span>
-          ) : null}
-          {response?.cost ? (
-            <span className="badge">Costo est.: {formatUsd(response.cost.totalUsd)}</span>
-          ) : null}
+        <div className="stageTabBar" role="tablist" aria-label="Seleccionar etapa de resultados">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              className={`stageTab ${activeTab === tab.id ? "stageTabActive" : ""}`}
+              onClick={() => onTabChange(tab.id)}
+            >
+              <span className="stageTabLabel">{tab.label}</span>
+              <span className="stageTabHint">{tab.hint}</span>
+            </button>
+          ))}
         </div>
+
+        <div className="stageTabPanel" role="tabpanel">
+          {activeTab === "stage1" ? <StageTabPanel title="Resultado Etapa 1" response={stage1} /> : null}
+          {activeTab === "stage2" ? <StageTabPanel title="Resultado Etapa 2" response={stage2} /> : null}
+          {activeTab === "stage3" ? <StageTabPanel title="Resultado Etapa 3" response={stage3} /> : null}
+          {activeTab === "stage4" ? <IngestStageSection {...ingest} embedded /> : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function StageTabPanel({ title, response }: { title: string; response: ApiResponse | null }) {
+  const itemCount = response?.result?.items?.length ?? 0;
+  const canRender = response?.result != null || Boolean(response?.error);
+
+  if (!response) {
+    return <p className="muted stageTabPlaceholder">Sin datos. Ejecutá la etapa.</p>;
+  }
+
+  if (!canRender) {
+    return (
+      <div className="stageTabBody">
+        <p className="muted stageTabPlaceholder">Sin resultado aún.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="stageTabBody">
+      {response.error ? <div className="error">{response.error}</div> : null}
+      <div className="sectionBadges stageTabBadges">
+        <span className="badge">{itemCount} ítems</span>
+        {response.model ? <span className="badge">Motor IA: {getModelDisplayName(response.model)}</span> : null}
+        {response.usage ? (
+          <span className="badge">Tokens: {response.usage.totalTokens.toLocaleString("es-CO")}</span>
+        ) : null}
+        {response.cost ? <span className="badge">Costo est.: {formatUsd(response.cost.totalUsd)}</span> : null}
       </div>
 
-      {isOpen ? (
-        <>
-          <DynamicTable items={response?.result?.items ?? []} />
+      <DynamicTable items={response.result?.items ?? []} />
 
-          {response?.result?.metadata ? (
-            <JsonDetails title="Metadata" value={response.result.metadata} />
-          ) : null}
-
-          {response?.result?.control_calidad ? (
-            <JsonDetails title="Control de calidad" value={response.result.control_calidad} />
-          ) : null}
-
-          {response?.groundingMetadata ? (
-            <JsonDetails title="Fuentes de busqueda del motor IA" value={response.groundingMetadata} />
-          ) : null}
-
-          {response?.usage || response?.cost ? (
-            <JsonDetails
-              title="Uso y costo estimado"
-              value={{ usage: response.usage, cost: response.cost }}
-            />
-          ) : null}
-
-          {response?.raw || response?.cleaned ? (
-            <JsonDetails
-              title="JSON crudo"
-              value={response.cleaned ? { cleaned: response.cleaned, raw: response.raw } : response.raw}
-            />
-          ) : null}
-        </>
-      ) : null}
-    </section>
+      <div className="stageJsonStack">
+        {response.result?.metadata ? <JsonDetails title="Metadata" value={response.result.metadata} subtle /> : null}
+        {response.result?.control_calidad ? (
+          <JsonDetails title="Control de calidad" value={response.result.control_calidad} subtle />
+        ) : null}
+        {response.groundingMetadata ? (
+          <JsonDetails title="Fuentes de busqueda del motor IA" value={response.groundingMetadata} subtle />
+        ) : null}
+        {response.usage || response.cost ? (
+          <JsonDetails title="Uso y costo estimado" value={{ usage: response.usage, cost: response.cost }} subtle />
+        ) : null}
+        {response.raw || response.cleaned ? (
+          <JsonDetails
+            title="JSON crudo"
+            value={response.cleaned ? { cleaned: response.cleaned, raw: response.raw } : response.raw}
+            subtle
+          />
+        ) : null}
+      </div>
+    </div>
   );
+}
+
+function cellPlainTextDeep(value: unknown, depth = 0): string {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+
+  if (depth > 5) {
+    return "…";
+  }
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => cellPlainTextDeep(entry, depth + 1)).join(" · ");
+  }
+
+  if (isRecord(value)) {
+    return Object.entries(value)
+      .map(([key, entry]) => `${key}: ${cellPlainTextDeep(entry, depth + 1)}`)
+      .join(" | ");
+  }
+
+  return "";
+}
+
+function getCellPlainTextForTitle(value: unknown, maxLen = 900): string {
+  const text = cellPlainTextDeep(value).replace(/\s+/g, " ").trim();
+
+  if (text.length <= maxLen) {
+    return text;
+  }
+
+  return `${text.slice(0, maxLen)}…`;
+}
+
+function isComplexCellValue(value: unknown, column: string): boolean {
+  const normalized = normalizeLabel(column);
+  const complexColumns = new Set([
+    "estado de cotizacion",
+    "cotizaciones encontradas",
+    "auditoria de busqueda",
+    "vista rapida de cotizacion"
+  ]);
+
+  if (complexColumns.has(normalized)) {
+    return true;
+  }
+
+  if (value === null || value === undefined || value === "") {
+    return false;
+  }
+
+  return typeof value === "object";
 }
 
 function DynamicTable({ items }: { items: Record<string, unknown>[] }) {
@@ -1653,6 +2439,7 @@ function DynamicTable({ items }: { items: Record<string, unknown>[] }) {
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
+  const [expandedRow, setExpandedRow] = useState<number | null>(null);
 
   useEffect(() => {
     const validColumns = new Set(columns);
@@ -1736,7 +2523,7 @@ function DynamicTable({ items }: { items: Record<string, unknown>[] }) {
   }
 
   return (
-    <>
+    <div className="dataTableMount">
       {hiddenColumns.length ? (
         <div className="hiddenColumnsBar">
           <span>Ocultas:</span>
@@ -1754,8 +2541,8 @@ function DynamicTable({ items }: { items: Record<string, unknown>[] }) {
         </div>
       ) : null}
 
-      <div className="tableWrap">
-        <table className="dataTable">
+      <div className="tableWrap tableWrapScroll">
+        <table className="dataTable dataTableCompact">
           <colgroup>
             {visibleColumns.map((column) => (
               <col
@@ -1814,25 +2601,48 @@ function DynamicTable({ items }: { items: Record<string, unknown>[] }) {
             </tr>
           </thead>
           <tbody>
-            {sortedItems.map((item, rowIndex) => (
-              <tr key={rowIndex}>
-                {visibleColumns.map((column) => (
-                  <td className={getCellClassName(column)} key={column}>
-                    {formatCell(item[column], column)}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {sortedItems.map((item, rowIndex) => {
+              const expanded = expandedRow === rowIndex;
+
+              return (
+                <tr
+                  className={expanded ? "dataTableRowExpanded" : undefined}
+                  key={rowIndex}
+                  onClick={() => setExpandedRow((current) => (current === rowIndex ? null : rowIndex))}
+                  title={expanded ? undefined : "Clic para expandir o contraer la fila"}
+                >
+                  {visibleColumns.map((column) => {
+                    const raw = item[column];
+                    const complex = isComplexCellValue(raw, column);
+                    const bodyClass = expanded
+                      ? "cellBody cellBodyExpanded"
+                      : complex
+                        ? "cellBody cellBodyComplex"
+                        : "cellBody cellBodyEllipsis";
+
+                    return (
+                      <td
+                        className={[getCellClassName(column)].filter(Boolean).join(" ")}
+                        key={column}
+                        title={getCellPlainTextForTitle(raw)}
+                      >
+                        <div className={bodyClass}>{formatCell(raw, column)}</div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
-    </>
+    </div>
   );
 }
 
-function JsonDetails({ title, value }: { title: string; value: unknown }) {
+function JsonDetails({ title, value, subtle }: { title: string; value: unknown; subtle?: boolean }) {
   return (
-    <details className="jsonDetails">
+    <details className={`jsonDetails${subtle ? " jsonDetailsSubtle" : ""}`}>
       <summary>{title}</summary>
       <pre>{typeof value === "string" ? value : JSON.stringify(value, null, 2)}</pre>
     </details>
@@ -1846,9 +2656,9 @@ function IngestStageSection({
   previewError,
   financialBusy,
   financialMessage,
-  financialCalculationId,
   onSend,
-  canSend
+  canSend,
+  embedded = false
 }: {
   stage3Done: boolean;
   ingest: FinancialIngestPayload | null;
@@ -1856,9 +2666,9 @@ function IngestStageSection({
   previewError: string | null;
   financialBusy: boolean;
   financialMessage: string | null;
-  financialCalculationId: string | null;
   onSend: () => void;
   canSend: boolean;
+  embedded?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const tableItems = useMemo(() => (ingest ? financialIngestToTableRows(ingest) : []), [ingest]);
@@ -1870,24 +2680,30 @@ function IngestStageSection({
   }, [ingest]);
 
   if (!stage3Done) {
-    return (
-      <section className="panel">
-        <div className="sectionHeader stageHeader">
-          <div className="stageHeaderTitle">
-            <h2>Etapa 4: Preparación análisis financiero</h2>
+    const waiting = (
+      <>
+        {!embedded ? (
+          <div className="sectionHeader stageHeader">
+            <div className="stageHeaderTitle">
+              <h2>Etapa 4: Preparación análisis financiero</h2>
+            </div>
           </div>
-        </div>
-        <p className="muted">
-          Ejecuta la Etapa 3 para ver aquí la tabla y el JSON que se enviarán a Simulador Financiero (contrato de ingesta v1).
-        </p>
-      </section>
+        ) : null}
+        <p className="muted stageTabPlaceholder">Completá Etapa 3 para la vista previa.</p>
+      </>
     );
+
+    if (embedded) {
+      return <div className="stageTabBody">{waiting}</div>;
+    }
+
+    return <section className="panel">{waiting}</section>;
   }
 
-  return (
-    <section className="panel">
-      <div className="sectionHeader stageHeader">
-        <div className="stageHeaderTitle">
+  const header = (
+    <div className="sectionHeader stageHeader">
+      <div className="stageHeaderTitle">
+        {embedded ? null : (
           <button
             aria-expanded={isOpen}
             aria-label={isOpen ? "Cerrar Etapa 4" : "Abrir Etapa 4"}
@@ -1897,59 +2713,72 @@ function IngestStageSection({
           >
             {isOpen ? "-" : "+"}
           </button>
-          <h2>Etapa 4: Preparación análisis financiero</h2>
-        </div>
-
-        <div className="sectionBadges">
-          <span className="badge">{ingest?.items.length ?? 0} ítems</span>
-          <span className="badge">Ingesta v1</span>
-          {ingest?.settings?.usd_to_cop_rate ? (
-            <span className="badge">TRM USD {ingest.settings.usd_to_cop_rate}</span>
-          ) : null}
-        </div>
+        )}
+        <h2 className={embedded ? "stageIngestHeading" : undefined}>Etapa 4: Preparación análisis financiero</h2>
       </div>
 
-      {loading ? <p className="muted">Generando vista previa de lo que se enviará a Simulador Financiero...</p> : null}
-      {previewError ? <div className="error">{previewError}</div> : null}
+      <div className="sectionBadges">
+        <span className="badge">{ingest?.items.length ?? 0} ítems</span>
+        <span className="badge">Ingesta v1</span>
+        {ingest?.settings?.usd_to_cop_rate ? (
+          <span className="badge">TRM USD {ingest.settings.usd_to_cop_rate}</span>
+        ) : null}
+      </div>
+    </div>
+  );
 
-      {isOpen && !loading && ingest ? (
-        <>
-          <p className="muted">
-            Revisá la grilla como en las otras etapas. Esto es exactamente el cuerpo del <strong>POST /api/import</strong>{" "}
-            (cada envío genera un <strong>cálculo nuevo</strong> en Simulador Financiero). Nombre del cálculo:{" "}
-            <strong>{ingest.calculation.name}</strong>
-            {ingest.settings?.usd_import_pct != null ? ` · import USD ${ingest.settings.usd_import_pct}%` : null}.
-          </p>
+  const body =
+    loading || previewError || (isOpen && ingest) ? (
+      <>
+        {loading ? <p className="muted">Generando vista previa…</p> : null}
+        {previewError ? <div className="error">{previewError}</div> : null}
 
-          {tableItems.length ? (
-            <DynamicTable items={tableItems} />
-          ) : (
-            <p className="empty">No hay filas exportables (revisá descripciones o fuentes en Etapa 3).</p>
-          )}
+        {isOpen && !loading && ingest ? (
+          <>
+            <p className="muted ingestPreviewLine">
+              Vista previa <strong>POST /api/import</strong> · <strong>{ingest.calculation.name}</strong>
+              {ingest.settings?.usd_import_pct != null ? ` · import USD ${ingest.settings.usd_import_pct}%` : null}
+              <InfoTip
+                label="Ingesta"
+                text="Cada envío crea un cálculo nuevo en Simulador Financiero. El JSON coincide con el cuerpo del POST /api/import (contrato v1)."
+              />
+            </p>
 
-          <JsonDetails title="JSON de ingesta (contrato v1, mismo cuerpo que POST /api/import)" value={ingest} />
+            {tableItems.length ? (
+              <DynamicTable items={tableItems} />
+            ) : (
+              <p className="empty">Sin filas exportables.</p>
+            )}
 
-          <div className="actions">
-            <button type="button" onClick={onSend} disabled={financialBusy || !canSend}>
-              {financialBusy ? "Enviando..." : "Enviar análisis financiero"}
-            </button>
-          </div>
+            <div className="stageJsonStack">
+              <JsonDetails title="JSON ingesta (v1)" value={ingest} subtle />
+            </div>
 
-          {financialMessage ? <div className="notice">{financialMessage}</div> : null}
-          {financialCalculationId ? (
-            <>
-              <p className="muted">
-                ID del cálculo: <code className="inlineCode">{financialCalculationId}</code>
-              </p>
-              <div className="actions">
-                <a className="linkAsButton" href={`/finanzas?calc=${encodeURIComponent(financialCalculationId)}`}>
-                  Ver cálculo en Simulador Financiero (misma app)
-                </a>
-              </div>
-            </>
-          ) : null}
-        </>
-      ) : null}
+            <div className="actions actionsCompact">
+              <button type="button" onClick={onSend} disabled={financialBusy || !canSend}>
+                {financialBusy ? "Enviando..." : "Enviar análisis financiero"}
+              </button>
+            </div>
+
+            {financialMessage ? <div className="notice">{financialMessage}</div> : null}
+          </>
+        ) : null}
+      </>
+    ) : null;
+
+  if (embedded) {
+    return (
+      <div className="stageTabBody">
+        {header}
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <section className="panel">
+      {header}
+      {body}
     </section>
   );
 }
@@ -2204,6 +3033,7 @@ function parseLooseNumber(value: string) {
 function getCellClassName(column: string) {
   const normalized = normalizeLabel(column);
   const wideColumns = new Set([
+    "nombre del producto",
     "nombre o descripcion",
     "descripcion",
     "detalles o ficha tecnica",

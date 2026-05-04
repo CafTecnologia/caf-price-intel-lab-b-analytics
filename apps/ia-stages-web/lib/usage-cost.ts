@@ -44,6 +44,16 @@ type GeminiUsageMetadata = {
   totalTokenCount?: number;
 };
 
+type DeepSeekUsageMetadata = {
+  prompt_tokens?: number;
+  prompt_cache_hit_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  completion_tokens_details?: {
+    reasoning_tokens?: number;
+  };
+};
+
 export function extractGeminiUsageMetadata(metadata: unknown): AiUsageSummary | undefined {
   if (!metadata || typeof metadata !== "object") {
     return undefined;
@@ -55,6 +65,38 @@ export function extractGeminiUsageMetadata(metadata: unknown): AiUsageSummary | 
   const outputTokens = toNonNegativeNumber(usage.candidatesTokenCount);
   const thinkingTokens = toNonNegativeNumber(usage.thoughtsTokenCount);
   const totalTokens = toNonNegativeNumber(usage.totalTokenCount);
+
+  if (
+    inputTokens === 0 &&
+    cachedInputTokens === 0 &&
+    outputTokens === 0 &&
+    thinkingTokens === 0 &&
+    totalTokens === 0
+  ) {
+    return undefined;
+  }
+
+  return {
+    inputTokens,
+    cachedInputTokens,
+    outputTokens,
+    thinkingTokens,
+    totalTokens
+  };
+}
+
+export function extractDeepSeekUsageMetadata(metadata: unknown): AiUsageSummary | undefined {
+  if (!metadata || typeof metadata !== "object") {
+    return undefined;
+  }
+
+  const usage = metadata as DeepSeekUsageMetadata;
+  const inputTokens = toNonNegativeNumber(usage.prompt_tokens);
+  const cachedInputTokens = toNonNegativeNumber(usage.prompt_cache_hit_tokens);
+  const completionTokens = toNonNegativeNumber(usage.completion_tokens);
+  const thinkingTokens = toNonNegativeNumber(usage.completion_tokens_details?.reasoning_tokens);
+  const outputTokens = Math.max(0, completionTokens - thinkingTokens);
+  const totalTokens = toNonNegativeNumber(usage.total_tokens);
 
   if (
     inputTokens === 0 &&

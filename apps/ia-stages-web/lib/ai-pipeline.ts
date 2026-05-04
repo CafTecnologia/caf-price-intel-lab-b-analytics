@@ -8,6 +8,7 @@ import { validateStage3PricingEvidence } from "@/lib/stage3-quality";
 import { extractTextFromFile } from "@/lib/text-extract";
 import {
   estimateAiCost,
+  extractDeepSeekUsageMetadata,
   extractGeminiUsageMetadata,
   summarizeSearchUsage,
   type AiCostSummary,
@@ -21,6 +22,7 @@ export type StageOutput = {
   runId: string;
   result: Record<string, unknown>;
   raw: string;
+  provider?: "gemini" | "deepseek";
   model: string;
   groundingMetadata?: unknown;
   usage?: AiUsageSummary;
@@ -127,13 +129,15 @@ export async function runStage1ForFile(file: File, runId: string = randomUUID())
     });
 
     const gemini = await callGemini({ prompt, stage: "stage1" });
-    const usage = extractGeminiUsageMetadata(gemini.usageMetadata);
-    const cost = estimateAiCost({ provider: "gemini", model: gemini.model, usage });
+    const provider = gemini.provider ?? "gemini";
+    const usage = extractUsage(provider, gemini.usageMetadata);
+    const cost = estimateAiCost({ provider, model: gemini.model, usage });
 
     await writePipelineLog({
       runId,
       stage: "stage1",
       event: "ai_response",
+      provider,
       model: gemini.model,
       fileName: file.name,
       durationMs: Date.now() - startedAt,
@@ -152,13 +156,14 @@ export async function runStage1ForFile(file: File, runId: string = randomUUID())
       runId,
       stage: "stage1",
       event: "validated",
+      provider,
       model: gemini.model,
       fileName: file.name,
       durationMs: Date.now() - startedAt,
       data: { items: getItemsCount(result), usage, cost }
     });
 
-    return { runId, result, raw: gemini.text, model: gemini.model, usage, cost };
+    return { runId, result, raw: gemini.text, provider, model: gemini.model, usage, cost };
   } catch (error) {
     const failure = normalizeStageError(error, "stage1");
 
@@ -207,13 +212,15 @@ export async function runStage2ForJson(stage1Json: unknown, runId: string = rand
     });
 
     const gemini = await callGemini({ prompt, stage: "stage2" });
-    const usage = extractGeminiUsageMetadata(gemini.usageMetadata);
-    const cost = estimateAiCost({ provider: "gemini", model: gemini.model, usage });
+    const provider = gemini.provider ?? "gemini";
+    const usage = extractUsage(provider, gemini.usageMetadata);
+    const cost = estimateAiCost({ provider, model: gemini.model, usage });
 
     await writePipelineLog({
       runId,
       stage: "stage2",
       event: "ai_response",
+      provider,
       model: gemini.model,
       durationMs: Date.now() - startedAt,
       data: {
@@ -231,12 +238,13 @@ export async function runStage2ForJson(stage1Json: unknown, runId: string = rand
       runId,
       stage: "stage2",
       event: "validated",
+      provider,
       model: gemini.model,
       durationMs: Date.now() - startedAt,
       data: { items: getItemsCount(result), usage, cost }
     });
 
-    return { runId, result, raw: gemini.text, model: gemini.model, usage, cost };
+    return { runId, result, raw: gemini.text, provider, model: gemini.model, usage, cost };
   } catch (error) {
     const failure = normalizeStageError(error, "stage2");
 
@@ -285,10 +293,11 @@ export async function runStage3ForJson(stage2Json: unknown, runId: string = rand
 
     const gemini = await callGeminiWithSearch({ prompt, stage: "stage3" });
     const groundingMetadata = summarizeGroundingMetadata(gemini.groundingMetadata);
-    const usage = extractGeminiUsageMetadata(gemini.usageMetadata);
+    const provider = gemini.provider ?? "gemini";
+    const usage = extractUsage(provider, gemini.usageMetadata);
     const search = summarizeSearchUsage(groundingMetadata);
     const cost = estimateAiCost({
-      provider: "gemini",
+      provider,
       model: gemini.model,
       usage,
       search
@@ -298,6 +307,7 @@ export async function runStage3ForJson(stage2Json: unknown, runId: string = rand
       runId,
       stage: "stage3",
       event: "ai_search_response",
+      provider,
       model: gemini.model,
       durationMs: Date.now() - startedAt,
       data: {
@@ -318,6 +328,7 @@ export async function runStage3ForJson(stage2Json: unknown, runId: string = rand
       runId,
       stage: "stage3",
       event: "validated",
+      provider,
       model: gemini.model,
       durationMs: Date.now() - startedAt,
       data: {
@@ -333,6 +344,7 @@ export async function runStage3ForJson(stage2Json: unknown, runId: string = rand
       runId,
       result,
       raw: gemini.text,
+      provider,
       model: gemini.model,
       groundingMetadata,
       usage,
@@ -441,4 +453,10 @@ function normalizeInternalConsecutive(result: Record<string, unknown>) {
       return normalized;
     })
   };
+}
+
+function extractUsage(provider: "gemini" | "deepseek", metadata: unknown) {
+  return provider === "deepseek"
+    ? extractDeepSeekUsageMetadata(metadata)
+    : extractGeminiUsageMetadata(metadata);
 }

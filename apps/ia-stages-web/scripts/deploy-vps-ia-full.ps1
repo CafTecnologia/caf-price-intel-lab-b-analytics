@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
   Sube la app completa (Extracción de datos estratégicos) a ia-stages-web en el VPS DEV,
-  respalda la carpeta anterior, preserva data/ del servidor, instala, test, build y reinicia :18031.
+  respalda la carpeta anterior, preserva data/ y .env.local del servidor, instala, test, build y reinicia :18031.
 
   Requisitos: llave %USERPROFILE%\.ssh\caf_dev_codex (ver tmp-financial-offer-web/docs/DEPLOY_DEV.md).
 
@@ -34,9 +34,8 @@ $SshScp += @("-o", "BatchMode=yes", "-o", "ConnectTimeout=25")
 
 $ForkRoot = Split-Path -Parent $PSScriptRoot
 $Target = "${User}@${DevHost}"
-$archive = Join-Path $env:TEMP "ia-stages-web.tgz"
-
-if (Test-Path $archive) { Remove-Item -LiteralPath $archive -Force }
+# Nombre único evita bloqueo si otro deploy dejó el .tgz en uso en %TEMP%.
+$archive = Join-Path $env:TEMP ("ia-stages-web-" + (Get-Date -Format "yyyyMMddHHmmss") + "-" + ([Guid]::NewGuid().ToString("n").Substring(0, 8)) + ".tgz")
 
 Write-Host "Empaquetando desde $ForkRoot ..."
 Set-Location $ForkRoot
@@ -65,14 +64,18 @@ cd /REPO
 ts=$(date +%Y%m%d_%H%M%S)
 mkdir -p /opt/caf-dev/backups/ia-stages-web
 if [ -d apps/ia-stages-web ]; then sudo cp -a apps/ia-stages-web /opt/caf-dev/backups/ia-stages-web/ia-stages-web.backup-$ts; fi
-DATA_BAK="/opt/caf-dev/backups/ia-stages-web/ia-stages-web.backup-$ts/data"
+BACKUP_ROOT="/opt/caf-dev/backups/ia-stages-web/ia-stages-web.backup-$ts"
+DATA_BAK="$BACKUP_ROOT/data"
+ENV_BAK="$BACKUP_ROOT/.env.local"
 sudo fuser -k 18031/tcp 2>/dev/null || true
 sleep 2
 sudo rm -rf apps/ia-stages-web
 sudo mkdir -p apps/ia-stages-web
 sudo tar -xzf /tmp/ia-stages-web.tgz -C apps/ia-stages-web
 sudo chown -R ubuntu:ubuntu apps/ia-stages-web
-if [ -d "$DATA_BAK" ]; then sudo rm -rf apps/ia-stages-web/data; sudo cp -a "$DATA_BAK" apps/ia-stages-web/data; sudo chown -R ubuntu:ubuntu apps/ia-stages-web/data; fi
+sudo chmod -R u+rwX apps/ia-stages-web
+if [ -d "$DATA_BAK" ]; then sudo rm -rf apps/ia-stages-web/data; sudo cp -a "$DATA_BAK" apps/ia-stages-web/data; sudo chown -R ubuntu:ubuntu apps/ia-stages-web/data; sudo chmod -R u+rwX apps/ia-stages-web/data; fi
+if [ -f "$ENV_BAK" ]; then sudo cp -a "$ENV_BAK" apps/ia-stages-web/.env.local; sudo chown ubuntu:ubuntu apps/ia-stages-web/.env.local; sudo chmod u+rw apps/ia-stages-web/.env.local; fi
 npm --prefix apps/ia-stages-web install >/tmp/ia-stages-npm-install.log
 npm --prefix apps/ia-stages-web test
 npm --prefix apps/ia-stages-web run build
@@ -90,5 +93,9 @@ $remote = $remote -replace "`r`n", "`n"
 Write-Host "Instalando, probando, build y reinicio en VPS ..."
 & ssh @SshScp $Target $remote
 if ($LASTEXITCODE -ne 0) { throw "ssh deploy fallo (codigo $LASTEXITCODE)." }
+
+if (Test-Path -LiteralPath $archive) {
+  Remove-Item -LiteralPath $archive -Force -ErrorAction SilentlyContinue
+}
 
 Write-Host "Listo. Log arranque: /tmp/ia-stages-start.log en el VPS."

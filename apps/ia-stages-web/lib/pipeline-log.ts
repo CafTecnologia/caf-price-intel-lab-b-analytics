@@ -10,6 +10,7 @@ type PipelineLogEvent = {
   runId: string;
   stage: AiStage;
   event: string;
+  provider?: string;
   model?: string;
   fileName?: string;
   durationMs?: number;

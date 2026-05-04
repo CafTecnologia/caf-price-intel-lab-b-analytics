@@ -1,9 +1,0 @@
-Flujo canonico VPS-first:
-
-La app corre en el VPS DEV y la PC entra por tunel SSH.
-
-Puertos de la suite:
-- http://127.0.0.1:18030  -> Simulador Financiero (VPS 127.0.0.1:18030)
-- http://127.0.0.1:18031  -> Extraccion de datos estrategicos (VPS 127.0.0.1:18031)
-
-No usar otros forwards en el tunel base de esta suite.

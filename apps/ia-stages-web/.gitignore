@@ -1,19 +1,46 @@
 node_modules/
-.next/
-dist/
-build/
+.clasprc.json
+.DS_Store
 .env
-.env.*
-!.env.example
-*.log
-*.tmp
-*.zip
+.env.local
+.next/
+out/
+logs/
+data/
+
+# Corridas y exports de sesion de agente
+appb-*.json
+appb-*.txt
+appb-*.xlsx
+tmp-run-*.json
+*-runs-latest.json
+
+# Scripts operativos de sesion
+_*.sh
+_*.py
+_*.mjs
 *.tar.gz
 *.tgz
-*.xlsx
-appb-run-*.json
-appb-debug-*.txt
-appb-export-*.xlsx
-_tmp*/
-tmp*/
-*_work/
+*.zip
+
+# Directorios de trabajo y experimentos de sesion
+caf_b_*/
+caf_financial_analysis_b_*/
+ai-market-matrix/
+appb_case_files/
+app-b-user-acceptance-inbox/
+document-pipeline-core/
+caf-dev-homepage-work/
+caf-ops-setup/
+.tmp-caf-dev/
+
+# Contexto de agente (no va al repo)
+docs/ai-context/
+
+# Archivos de ops de agente
+codex_ops_config.toml
+AUTONOMOUS_WORKSTREAM.txt
+bootstrap-last-run.txt
+TUNNEL.txt
+.clasp.json
+.claspignore

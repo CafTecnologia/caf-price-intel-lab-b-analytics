@@ -1,63 +1,87 @@
 # Handoff Para Otro Agente
 
 ## Que es esta app
-Esta app es la capa de extraccion IA por etapas de la suite.
+
+Esta app es la capa de extraccion IA por etapas de la suite CAF.
 
 Su rol es:
 - recibir archivos o contexto documental
-- ejecutar extraccion y estructuracion
+- ejecutar extraccion y estructuracion por etapas (Etapa 1, 2 y 3)
 - producir datos normalizados reutilizables
-- servir como alimentador del simulador financiero
+- alimentar al simulador financiero (Etapa 4)
 
-No reemplaza al simulador financiero. No debe absorber calculos financieros internos que ya pertenecen a financial-offer-web.
+No reemplaza al simulador financiero. No debe absorber calculos financieros
+internos que ya pertenecen a financial-offer-web.
 
 ## Ubicacion canonica
+
 VPS DEV:
+
+```
 /opt/caf-dev/repos/caf-price-intel-lab-b-analytics/apps/ia-stages-web
+```
 
-URL DEV:
-http://127.0.0.1:18031/
+URL DEV: http://127.0.0.1:18031
 
-## Regla central
-Esta app trabaja en modo VPS-first. No tomar una carpeta del PC local como fuente de verdad.
+La PC local se usa como cliente (SSH, navegador, tunel). No es la fuente de verdad.
+
+## Estado actual (actualizado 2026-05-03)
+
+- Multi-proveedor operativo: Gemini y DeepSeek configurables por etapa
+- Modelo y proveedor distintos por etapa (Etapa 1, 2, 3)
+- Etapa 4 live: al completar el analisis financiero, la app envia el JSON a
+  financial-offer-web (POST /api/import) y redirige automaticamente a
+  /finanzas?calc={id}
+- /finanzas: embed del simulador financiero con deteccion de CSP y fallback
+- Historial de corridas: SQLite en /data/runs.db via /api/runs
+- Perfiles de prompt por proveedor: lib/prompt-profiles.ts
+
+## Motor IA configurable
+
+Proveedores soportados: Gemini (Google) y DeepSeek.
+
+Configuracion via .env.local:
+
+```
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-2.5-flash
+DEEPSEEK_API_KEY=...
+DEEPSEEK_MODEL=deepseek-v4-flash
+AI_PROVIDER=gemini
+AI_PROVIDER_STAGE1=gemini
+AI_PROVIDER_STAGE2=gemini
+AI_PROVIDER_STAGE3=gemini
+AI_MODEL_STAGE1=
+AI_MODEL_STAGE2=
+AI_MODEL_STAGE3=
+```
+
+Si AI_PROVIDER_STAGEx esta vacio, la etapa hereda el proveedor global.
+Si AI_MODEL_STAGEx esta vacio, la etapa usa el modelo global del proveedor.
 
 ## Relacion con la suite
-- Extraccion IA por etapas: esta app
-- Simulador financiero deterministico: apps/financial-offer-web
-- Odoo clone: punto de integracion y validacion previa a produccion
+
+- Extraccion IA por etapas: esta app (18031)
+- Simulador financiero deterministico: apps/financial-offer-web (18030)
+- Odoo clone: punto de integracion y validacion previa a produccion (18069)
 
 ## Contrato conceptual hacia el simulador
-Esta app debe entregar datos normalizados, no calculos financieros.
 
-Debe aspirar a producir por item:
-- identificador del item
-- descripcion
-- ficha tecnica
-- cantidad
-- unidad
-- precio techo unitario o referencia unitaria
-- fuentes de precio (price_sources), con moneda, valor unitario, URL y notas
-- observaciones documentales utiles
+Esta app produce por item:
+- descripcion, ficha tecnica, cantidad, unidad
+- precio techo unitario (reference_unit)
+- fuentes de precio (price_sources): moneda, valor unitario, URL, notas
 
-No debe forzar al otro sistema a recibir:
-- costos ya promediados
-- modos de costo
-- modos de oferta
-- utilidad calculada
-- margen calculado
-
+No envia costos calculados, modos de costo, utilidad ni margen.
 Eso vive en financial-offer-web.
 
-## Uso con Odoo clone
-La primera integracion recomendada no es meter esta app dentro del core de Odoo.
-La via segura es:
-1. Odoo clone abre la app mediante menu o boton
-2. Odoo guarda referencias minimas de la corrida
-3. Cuando la salida este estable, se conecta por API/JSON al simulador financiero
-
 ## Validaciones minimas
+
 Antes de cerrar trabajo:
-npm test
+
+```bash
+cd /opt/caf-dev/repos/caf-price-intel-lab-b-analytics/apps/ia-stages-web
 npm run typecheck
 npm run build
 curl -I http://127.0.0.1:18031/
+```
