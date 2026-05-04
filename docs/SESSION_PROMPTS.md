@@ -1,5 +1,7 @@
 # Prompts de Arranque
 
+Lee primero docs/WORKSTREAM_INDEX.md para elegir el frente correcto.
+
 Usa estos prompts para abrir sesiones nuevas con poco contexto y alta precision.
 
 ## 1. Simulador financiero
