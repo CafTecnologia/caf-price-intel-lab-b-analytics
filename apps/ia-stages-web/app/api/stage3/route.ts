@@ -17,7 +17,8 @@ export async function POST(request: Request) {
     }
 
     runId = typeof body?.runId === "string" ? body.runId : undefined;
-    const output = await runStage3ForJson(body.stage2Json, runId);
+    const modelOverride = typeof body?.model === "string" && body.model.trim() ? body.model.trim() : undefined;
+    const output = await runStage3ForJson(body.stage2Json, runId, modelOverride);
     saveStageSuccess("stage3", output, Date.now() - startedAt);
 
     return NextResponse.json({

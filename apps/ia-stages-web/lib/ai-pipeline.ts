@@ -89,7 +89,7 @@ export async function runFullAiPipeline(file: File): Promise<PipelineOutput> {
   }
 }
 
-export async function runStage1ForFile(file: File, runId: string = randomUUID()): Promise<StageOutput> {
+export async function runStage1ForFile(file: File, runId: string = randomUUID(), modelOverride?: string): Promise<StageOutput> {
   const startedAt = Date.now();
 
   await writePipelineLog({
@@ -128,7 +128,7 @@ export async function runStage1ForFile(file: File, runId: string = randomUUID())
       data: { promptLength: prompt.length }
     });
 
-    const gemini = await callGemini({ prompt, stage: "stage1" });
+    const gemini = await callGemini({ prompt, stage: "stage1", ...(modelOverride ? { model: modelOverride } : {}) });
     const provider = gemini.provider ?? "gemini";
     const usage = extractUsage(provider, gemini.usageMetadata);
     const cost = estimateAiCost({ provider, model: gemini.model, usage });
@@ -192,7 +192,7 @@ export async function runStage1ForFile(file: File, runId: string = randomUUID())
   }
 }
 
-export async function runStage2ForJson(stage1Json: unknown, runId: string = randomUUID()): Promise<StageOutput> {
+export async function runStage2ForJson(stage1Json: unknown, runId: string = randomUUID(), modelOverride?: string): Promise<StageOutput> {
   const startedAt = Date.now();
 
   await writePipelineLog({
@@ -211,7 +211,7 @@ export async function runStage2ForJson(stage1Json: unknown, runId: string = rand
       data: { promptLength: prompt.length, inputItems: getItemsCount(stage1Json) }
     });
 
-    const gemini = await callGemini({ prompt, stage: "stage2" });
+    const gemini = await callGemini({ prompt, stage: "stage2", ...(modelOverride ? { model: modelOverride } : {}) });
     const provider = gemini.provider ?? "gemini";
     const usage = extractUsage(provider, gemini.usageMetadata);
     const cost = estimateAiCost({ provider, model: gemini.model, usage });
@@ -272,7 +272,7 @@ export async function runStage2ForJson(stage1Json: unknown, runId: string = rand
   }
 }
 
-export async function runStage3ForJson(stage2Json: unknown, runId: string = randomUUID()): Promise<StageOutput> {
+export async function runStage3ForJson(stage2Json: unknown, runId: string = randomUUID(), modelOverride?: string): Promise<StageOutput> {
   const startedAt = Date.now();
 
   await writePipelineLog({
@@ -291,7 +291,7 @@ export async function runStage3ForJson(stage2Json: unknown, runId: string = rand
       data: { promptLength: prompt.length, inputItems: getItemsCount(stage2Json) }
     });
 
-    const gemini = await callGeminiWithSearch({ prompt, stage: "stage3" });
+    const gemini = await callGeminiWithSearch({ prompt, stage: "stage3", ...(modelOverride ? { model: modelOverride } : {}) });
     const groundingMetadata = summarizeGroundingMetadata(gemini.groundingMetadata);
     const provider = gemini.provider ?? "gemini";
     const usage = extractUsage(provider, gemini.usageMetadata);

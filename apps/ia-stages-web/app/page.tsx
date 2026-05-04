@@ -457,6 +457,8 @@ function Home() {
   const [ignoreUrlAnalysisId, setIgnoreUrlAnalysisId] = useState(false);
   const [resultsTab, setResultsTab] = useState<ResultsTabId>("stage1");
   const [configModalOpen, setConfigModalOpen] = useState(false);
+  const [activeStages, setActiveStages] = useState({ s1: true, s2: true, s3: true, s4: true });
+  const [copRate, setCopRate] = useState(4200);
 
   const isHistoricalMode = useMemo(() => historicalRun !== null, [historicalRun]);
   const setManualStageProvider = useMemo(
@@ -1102,6 +1104,250 @@ function Home() {
     }
   }
 
+  function toggleStage(n: 1 | 2 | 3 | 4, value: boolean) {
+    setActiveStages((prev) => {
+      const next = { ...prev } as Record<string, boolean>;
+      if (value) {
+        next[`s${n}`] = true;
+      } else {
+        for (let i = n; i <= 4; i++) {
+          next[`s${i}`] = false;
+        }
+      }
+      return next as typeof prev;
+    });
+  }
+
+  async function runSelectedStages() {
+    if (isHistoricalMode) {
+      setError("Estás viendo una sesión guardada. Usá «Nuevo análisis» antes de procesar otro archivo.");
+      return;
+    }
+    if (!file) {
+      setError("Carga un archivo antes de procesar.");
+      return;
+    }
+
+    const totalStartedAt = Date.now();
+    setLoading("pipeline");
+    setError(null);
+    setRunId(null);
+    setPipelineStatus("Procesando etapas seleccionadas...");
+
+    if (activeStages.s1) {
+      setStage1(null);
+      setStage2(null);
+      setStage3(null);
+      setActiveAnalysisId(null);
+      setActiveAnalysisCode(null);
+    } else if (activeStages.s2) {
+      setStage2(null);
+      setStage3(null);
+    } else if (activeStages.s3) {
+      setStage3(null);
+    }
+
+    setProcessStartedAt(totalStartedAt);
+    setElapsedMs(0);
+    setStageTiming({});
+
+    const steps: ProgressStep[] = [];
+    if (activeStages.s1) steps.push({ id: "stage1", label: "Etapa 1: extracción y normalización", status: "pending" });
+    if (activeStages.s2) steps.push({ id: "stage2", label: "Etapa 2: lectura técnica", status: "pending" });
+    if (activeStages.s3) steps.push({ id: "stage3", label: "Etapa 3: cotización de precios", status: "pending" });
+    setProgressSteps(steps.length ? steps : INITIAL_PROGRESS_STEPS);
+    setProgress({ phase: "preparing", percent: 5, label: "Preparando" });
+
+    let currentStage1 = stage1;
+    let currentStage2 = stage2;
+    let currentRunId = runId;
+
+    if (activeStages.s1) {
+      setProgress({ phase: "stage1", percent: 12, label: "Etapa 1: extrayendo y normalizando" });
+      setProgressStep("stage1", { status: "running" });
+      const formData = new FormData();
+      formData.append("file", file);
+      appendStage1FormContext(formData);
+      const s1At = Date.now();
+      const s1Res = await fetch("/api/stage1", { method: "POST", body: formData });
+      const s1Pay = (await s1Res.json()) as StageErrorResponse;
+      const s1Ms = Date.now() - s1At;
+      setStage1(s1Pay);
+      currentStage1 = s1Pay;
+      currentRunId = s1Pay.runId ?? null;
+      setRunId(currentRunId);
+      if (s1Res.ok && s1Pay.analysisId) {
+        setActiveAnalysisId(s1Pay.analysisId);
+        setActiveAnalysisCode(s1Pay.analysisCode ?? null);
+      }
+      setStageTiming((t) => ({ ...t, stage1Ms: s1Ms }));
+      if (!s1Res.ok || !s1Pay.result) {
+        setProgressStep("stage1", { status: "failed", durationMs: s1Ms });
+        finishPipelineAsFailed(totalStartedAt, s1Pay, "stage1");
+        return;
+      }
+      setProgressStep("stage1", { status: "done", durationMs: s1Ms });
+    }
+
+    if (activeStages.s2) {
+      const dep = currentStage1 ?? stage1;
+      if (!dep?.result) {
+        setError("Etapa 2 requiere resultado de Etapa 1.");
+        setLoading(null);
+        return;
+      }
+      setProgress({ phase: "stage2", percent: 55, label: "Etapa 2: lectura técnica" });
+      setProgressStep("stage2", { status: "running" });
+      const s2Body: Record<string, unknown> = { stage1Json: dep.result, runId: dep.runId };
+      const s2At = Date.now();
+      const s2Res = await fetch("/api/stage2", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s2Body) });
+      const s2Pay = (await s2Res.json()) as StageErrorResponse;
+      const s2Ms = Date.now() - s2At;
+      setStage2(s2Pay);
+      currentStage2 = s2Pay;
+      setRunId(s2Pay.runId ?? currentRunId);
+      setStageTiming((t) => ({ ...t, stage2Ms: s2Ms }));
+      if (!s2Res.ok || !s2Pay.result) {
+        setProgressStep("stage2", { status: "failed", durationMs: s2Ms });
+        finishPipelineAsFailed(totalStartedAt, s2Pay, "stage2");
+        return;
+      }
+      setProgressStep("stage2", { status: "done", durationMs: s2Ms });
+    }
+
+    if (activeStages.s3) {
+      const dep = currentStage2 ?? stage2;
+      if (!dep?.result) {
+        setError("Etapa 3 requiere resultado de Etapa 2.");
+        setLoading(null);
+        return;
+      }
+      setProgress({ phase: "stage3", percent: 78, label: "Etapa 3: cotizando precios" });
+      setProgressStep("stage3", { status: "running" });
+      const s3Body: Record<string, unknown> = { stage2Json: dep.result, runId: dep.runId ?? currentRunId };
+      const s3At = Date.now();
+      const s3Res = await fetch("/api/stage3", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s3Body) });
+      const s3Pay = (await s3Res.json()) as StageErrorResponse;
+      const s3Ms = Date.now() - s3At;
+      setStage3(s3Pay);
+      setStageTiming((t) => ({ ...t, stage3Ms: s3Ms }));
+      const totalMs = Date.now() - totalStartedAt;
+      setElapsedMs(totalMs);
+      setStageTiming((t) => ({ ...t, totalMs }));
+      if (!s3Res.ok || !s3Pay.result) {
+        setProgressStep("stage3", { status: "failed", durationMs: s3Ms });
+        setProgress({ phase: "failed", percent: 88, label: "Etapa 3 detenida" });
+        setError(buildUserErrorMessage(s3Pay, "No se pudo ejecutar la Etapa 3."));
+        setPipelineStatus("Etapa 3 detenida.");
+        setLoading(null);
+        void loadRuns();
+        return;
+      }
+      setProgressStep("stage3", { status: "done", durationMs: s3Ms });
+    }
+
+    const totalMs = Date.now() - totalStartedAt;
+    setStageTiming((t) => ({ ...t, totalMs }));
+    setElapsedMs(totalMs);
+    setProgress({ phase: "completed", percent: 100, label: "Proceso completo" });
+    const label = [activeStages.s1 && "E1", activeStages.s2 && "E2", activeStages.s3 && "E3"].filter(Boolean).join("+");
+    setPipelineStatus(`Procesamiento completo: ${label} finalizadas.${activeStages.s4 ? " → Ve a Etapa 4 para enviar al simulador." : ""}`);
+    setLoading(null);
+    void loadRuns();
+    if (activeStages.s3) setResultsTab("stage3");
+    else if (activeStages.s2) setResultsTab("stage2");
+    else if (activeStages.s1) setResultsTab("stage1");
+  }
+
+  async function runSingleStage(stageNum: 1 | 2 | 3, overrideProvider: AiProvider | "", overrideModel: string) {
+    if (isHistoricalMode) {
+      setError("Estás viendo una sesión guardada. Usá «Nuevo análisis» para procesar otro archivo.");
+      return;
+    }
+    if (stageNum === 1 && !file) {
+      setError("Carga un archivo antes de ejecutar la Etapa 1.");
+      return;
+    }
+    if (stageNum >= 2 && !stage1?.result) {
+      setError("Ejecuta primero la Etapa 1.");
+      return;
+    }
+    if (stageNum >= 3 && !stage2?.result) {
+      setError("Ejecuta primero la Etapa 2.");
+      return;
+    }
+
+    const stageKey = `stage${stageNum}` as "stage1" | "stage2" | "stage3";
+    const effectiveProvider = overrideProvider || (stageProviders[stageKey] as AiProvider) || "gemini";
+    const effectiveModel = overrideModel || stageModels[stageKey];
+    const modelRef = effectiveProvider && effectiveModel ? buildProviderModelRef(effectiveProvider, effectiveModel) : undefined;
+
+    setLoading(stageKey);
+    setError(null);
+
+    if (stageNum === 1) {
+      setStage1(null);
+      setStage2(null);
+      setStage3(null);
+      setActiveAnalysisId(null);
+      setActiveAnalysisCode(null);
+      const formData = new FormData();
+      formData.append("file", file!);
+      if (modelRef) formData.append("model", modelRef);
+      appendStage1FormContext(formData);
+      const res = await fetch("/api/stage1", { method: "POST", body: formData });
+      const pay = (await res.json()) as StageErrorResponse;
+      setRunId(pay.runId ?? null);
+      if (res.ok && pay.analysisId) {
+        setActiveAnalysisId(pay.analysisId);
+        setActiveAnalysisCode(pay.analysisCode ?? null);
+      }
+      setStage1(pay);
+      if (!res.ok) setError(buildUserErrorMessage(pay, "No se pudo ejecutar la Etapa 1."));
+    } else if (stageNum === 2) {
+      setStage2(null);
+      setStage3(null);
+      const body: Record<string, unknown> = { stage1Json: stage1!.result, runId: stage1!.runId };
+      if (modelRef) body.model = modelRef;
+      const res = await fetch("/api/stage2", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const pay = (await res.json()) as StageErrorResponse;
+      setRunId(pay.runId ?? stage1!.runId ?? null);
+      setStage2(pay);
+      if (!res.ok) setError(buildUserErrorMessage(pay, "No se pudo ejecutar la Etapa 2."));
+    } else {
+      setStage3(null);
+      const startedAt = Date.now();
+      setProcessStartedAt(startedAt);
+      setElapsedMs(0);
+      setStageTiming({});
+      setProgressSteps(STAGE3_PROGRESS_STEPS);
+      setProgress({ phase: "stage3", percent: 10, label: "Etapa 3: cotizando precios" });
+      setProgressStep("stage3", { status: "running" });
+      const body: Record<string, unknown> = { stage2Json: stage2!.result, runId: stage2!.runId ?? runId };
+      if (modelRef) body.model = modelRef;
+      const res = await fetch("/api/stage3", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const pay = (await res.json()) as StageErrorResponse;
+      const s3Ms = Date.now() - startedAt;
+      setRunId(pay.runId ?? stage2!.runId ?? runId);
+      setElapsedMs(s3Ms);
+      setStageTiming({ stage3Ms: s3Ms, totalMs: s3Ms });
+      if (!res.ok) {
+        setStage3(pay);
+        setProgressStep("stage3", { status: "failed", durationMs: s3Ms });
+        setProgress({ phase: "failed", percent: 72, label: "Etapa 3 detenida" });
+        setError(buildUserErrorMessage(pay, "No se pudo ejecutar la Etapa 3."));
+        setPipelineStatus("Etapa 3 detenida.");
+      } else {
+        setStage3(pay);
+        setProgressStep("stage3", { status: "done", durationMs: s3Ms });
+        setProgress({ phase: "completed", percent: 100, label: "Etapa 3 completa" });
+        setPipelineStatus(`Etapa 3 finalizada en ${formatDuration(s3Ms)}.`);
+      }
+      void loadRuns();
+    }
+    setLoading(null);
+  }
+
   return (
     <main className="appShell">
       <SessionsSidebar
@@ -1203,7 +1449,7 @@ function Home() {
                   </label>
                   <InfoTip
                     label="Flujo"
-                    text="Al elegir un archivo se ejecutan Etapa 1 y 2 automáticamente. La Etapa 3 la disparás vos con el botón correspondiente."
+                    text="Elegí las etapas a correr, cargá el archivo y presioná «Procesar datos». Cada etapa puede reprocesarse individualmente desde su pestaña."
                   />
                 </div>
                 <input
@@ -1215,38 +1461,59 @@ function Home() {
                     const nextFile = event.target.files?.[0] ?? null;
                     setFile(nextFile);
                     setError(null);
-                    if (nextFile) {
-                      void runPipeline(nextFile);
-                    }
                   }}
                 />
                 {file ? <p className="muted fileNameHint">{file.name}</p> : null}
               </>
             )}
 
-            <div className="actions">
-              <button type="button" onClick={() => file && runPipeline(file)} disabled={isHistoricalMode || loading !== null || !file}>
-                {loading === "pipeline" ? "Procesando..." : "Reintentar flujo completo"}
-              </button>
-              <button type="button" className="secondary" onClick={runStage1} disabled={isHistoricalMode || loading !== null}>
-                {loading === "stage1" ? "Extrayendo..." : "1. Extraer y normalizar"}
-              </button>
+            {!isHistoricalMode ? (
+              <div className="stageChecks">
+                {([1, 2, 3, 4] as const).map((n) => {
+                  const key = `s${n}` as keyof typeof activeStages;
+                  const prevEnabled = n === 1 || activeStages[`s${n - 1}` as keyof typeof activeStages];
+                  const checked = activeStages[key];
+                  const hints = ["Extraer", "Técnico", "Cotizar", "Simulador"];
+                  return (
+                    <label key={n} className={`stageCheck${!prevEnabled ? " stageCheckDisabled" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={!prevEnabled}
+                        onChange={(e) => toggleStage(n, e.target.checked)}
+                      />
+                      <span className="stageCheckLabel">E{n}</span>
+                      <small className="stageCheckHint">{hints[n - 1]}</small>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : null}
+            <div className="runMainRow">
               <button
                 type="button"
-                className="secondary"
-                onClick={runStage2}
-                disabled={isHistoricalMode || loading !== null || !stage1?.result}
+                className="runProcessButton"
+                onClick={() => void runSelectedStages()}
+                disabled={isHistoricalMode || loading !== null || !file}
               >
-                {loading === "stage2" ? "Analizando..." : "2. Analizar técnicamente"}
+                {loading === "pipeline"
+                  ? "Procesando..."
+                  : stage1?.result || stage2?.result || stage3?.result
+                  ? "Re-procesar"
+                  : "Procesar datos"}
               </button>
-              <button
-                type="button"
-                className="secondary"
-                onClick={runStage3}
-                disabled={isHistoricalMode || loading !== null || !stage2?.result}
-              >
-                {loading === "stage3" ? "Cotizando..." : "3. Cotizar precios"}
-              </button>
+              {!isHistoricalMode ? (
+                <label className="copRateLabel">
+                  TRM{" "}
+                  <input
+                    type="number"
+                    className="copRateInput"
+                    value={copRate}
+                    min={1}
+                    onChange={(e) => setCopRate(Math.max(1, Number(e.target.value) || 4200))}
+                  />
+                </label>
+              ) : null}
             </div>
 
             <ProcessingMonitor
@@ -1261,12 +1528,20 @@ function Home() {
             {runId ? <p className="muted runIdHint">Run: {shortId(runId)}</p> : null}
           </section>
 
+          <RunSummary stage1={stage1} stage2={stage2} stage3={stage3} copRate={copRate} />
           <StageResultsWorkspace
             activeTab={resultsTab}
             onTabChange={setResultsTab}
             stage1={stage1}
             stage2={stage2}
             stage3={stage3}
+            file={file}
+            loading={loading}
+            stageProviders={stageProviders}
+            stageModels={stageModels}
+            copRate={copRate}
+            isHistoricalMode={isHistoricalMode}
+            onRunStage={(n, p, m) => void runSingleStage(n, p, m)}
             ingest={{
               stage3Done: Boolean(stage3?.result),
               ingest: financialIngestPreview,
@@ -2260,6 +2535,13 @@ function StageResultsWorkspace({
   stage1,
   stage2,
   stage3,
+  file,
+  loading,
+  stageProviders,
+  stageModels,
+  copRate,
+  isHistoricalMode,
+  onRunStage,
   ingest
 }: {
   activeTab: ResultsTabId;
@@ -2267,6 +2549,13 @@ function StageResultsWorkspace({
   stage1: ApiResponse | null;
   stage2: ApiResponse | null;
   stage3: ApiResponse | null;
+  file: File | null;
+  loading: LoadingStage;
+  stageProviders: StageProviders;
+  stageModels: StageModels;
+  copRate: number;
+  isHistoricalMode: boolean;
+  onRunStage: (n: 1 | 2 | 3, provider: AiProvider | "", model: string) => void;
   ingest: {
     stage3Done: boolean;
     ingest: FinancialIngestPayload | null;
@@ -2315,9 +2604,51 @@ function StageResultsWorkspace({
         </div>
 
         <div className="stageTabPanel" role="tabpanel">
-          {activeTab === "stage1" ? <StageTabPanel title="Resultado Etapa 1" response={stage1} /> : null}
-          {activeTab === "stage2" ? <StageTabPanel title="Resultado Etapa 2" response={stage2} /> : null}
-          {activeTab === "stage3" ? <StageTabPanel title="Resultado Etapa 3" response={stage3} /> : null}
+          {activeTab === "stage1" ? (
+            <StageTabPanel
+              title="Resultado Etapa 1"
+              stageNum={1}
+              response={stage1}
+              canProcess={Boolean(file)}
+              hasFile={Boolean(file)}
+              defaultProvider={(stageProviders.stage1 as AiProvider) || "gemini"}
+              defaultModel={stageModels.stage1}
+              loading={loading}
+              isHistoricalMode={isHistoricalMode}
+              copRate={copRate}
+              onRun={(p, m) => onRunStage(1, p, m)}
+            />
+          ) : null}
+          {activeTab === "stage2" ? (
+            <StageTabPanel
+              title="Resultado Etapa 2"
+              stageNum={2}
+              response={stage2}
+              canProcess={Boolean(stage1?.result)}
+              hasFile={Boolean(file)}
+              defaultProvider={(stageProviders.stage2 as AiProvider) || "gemini"}
+              defaultModel={stageModels.stage2}
+              loading={loading}
+              isHistoricalMode={isHistoricalMode}
+              copRate={copRate}
+              onRun={(p, m) => onRunStage(2, p, m)}
+            />
+          ) : null}
+          {activeTab === "stage3" ? (
+            <StageTabPanel
+              title="Resultado Etapa 3"
+              stageNum={3}
+              response={stage3}
+              canProcess={Boolean(stage2?.result)}
+              hasFile={Boolean(file)}
+              defaultProvider={(stageProviders.stage3 as AiProvider) || "gemini"}
+              defaultModel={stageModels.stage3}
+              loading={loading}
+              isHistoricalMode={isHistoricalMode}
+              copRate={copRate}
+              onRun={(p, m) => onRunStage(3, p, m)}
+            />
+          ) : null}
           {activeTab === "stage4" ? <IngestStageSection {...ingest} embedded /> : null}
         </div>
       </section>
@@ -2325,24 +2656,99 @@ function StageResultsWorkspace({
   );
 }
 
-function StageTabPanel({ title, response }: { title: string; response: ApiResponse | null }) {
+function StageTabPanel({
+  title,
+  stageNum,
+  response,
+  canProcess,
+  hasFile,
+  defaultProvider,
+  defaultModel,
+  loading,
+  isHistoricalMode,
+  copRate,
+  onRun
+}: {
+  title: string;
+  stageNum: 1 | 2 | 3;
+  response: ApiResponse | null;
+  canProcess: boolean;
+  hasFile: boolean;
+  defaultProvider: AiProvider;
+  defaultModel: string;
+  loading: LoadingStage;
+  isHistoricalMode: boolean;
+  copRate: number;
+  onRun: (provider: AiProvider | "", model: string) => void;
+}) {
+  const [overrideProvider, setOverrideProvider] = useState<AiProvider | "">("");
+  const [overrideModel, setOverrideModel] = useState("");
+
   const itemCount = response?.result?.items?.length ?? 0;
-  const canRender = response?.result != null || Boolean(response?.error);
+  const hasResult = response?.result != null;
+  const isRunning = loading === (`stage${stageNum}` as LoadingStage);
+  const canRun = !isHistoricalMode && !loading && canProcess && (stageNum !== 1 || hasFile);
+  const btnLabel = isRunning ? "Procesando..." : hasResult ? "Reprocesar" : "Procesar";
+  const disabledTitle = !canProcess
+    ? stageNum === 1 ? "Carga un archivo primero" : `Requiere resultado de Etapa ${stageNum - 1}`
+    : stageNum === 1 && !hasFile ? "Carga un archivo primero"
+    : undefined;
 
-  if (!response) {
-    return <p className="muted stageTabPlaceholder">Sin datos. Ejecutá la etapa.</p>;
-  }
+  const effectiveProvider = (overrideProvider || defaultProvider || "gemini") as AiProvider;
 
-  if (!canRender) {
+  const runBar = !isHistoricalMode ? (
+    <div className="stageTabRunBar">
+      <div className="stageTabProviderRow">
+        <select
+          className="stageTabProviderSelect"
+          value={overrideProvider}
+          onChange={(e) => {
+            setOverrideProvider(e.target.value as AiProvider | "");
+            setOverrideModel("");
+          }}
+        >
+          <option value="">Perfil global ({PROVIDER_LABELS[defaultProvider] || "Gemini"})</option>
+          <option value="gemini">Google Gemini</option>
+          <option value="deepseek">DeepSeek</option>
+        </select>
+        <StageModelPicker
+          label="Modelo"
+          provider={effectiveProvider}
+          value={overrideModel}
+          defaultModel={defaultModel}
+          onChange={setOverrideModel}
+        />
+      </div>
+      <button
+        type="button"
+        className={hasResult ? "secondary miniButton stageTabRunBtn" : "miniButton stageTabRunBtn"}
+        disabled={!canRun}
+        title={disabledTitle}
+        onClick={() => onRun(overrideProvider, overrideModel)}
+      >
+        {btnLabel}
+      </button>
+    </div>
+  ) : null;
+
+  if (!response || (!response.result && !response.error)) {
     return (
       <div className="stageTabBody">
-        <p className="muted stageTabPlaceholder">Sin resultado aún.</p>
+        {runBar}
+        {!canProcess && stageNum > 1 ? (
+          <p className="muted stageTabPlaceholder">Requiere que Etapa {stageNum - 1} esté completada.</p>
+        ) : stageNum === 1 && !hasFile ? (
+          <p className="muted stageTabPlaceholder">Cargá un archivo para comenzar.</p>
+        ) : (
+          <p className="muted stageTabPlaceholder">Sin datos aún. Usá «Procesar» para ejecutar esta etapa.</p>
+        )}
       </div>
     );
   }
 
   return (
     <div className="stageTabBody">
+      {runBar}
       {response.error ? <div className="error">{response.error}</div> : null}
       <div className="sectionBadges stageTabBadges">
         <span className="badge">{itemCount} ítems</span>
@@ -2350,7 +2756,12 @@ function StageTabPanel({ title, response }: { title: string; response: ApiRespon
         {response.usage ? (
           <span className="badge">Tokens: {response.usage.totalTokens.toLocaleString("es-CO")}</span>
         ) : null}
-        {response.cost ? <span className="badge">Costo est.: {formatUsd(response.cost.totalUsd)}</span> : null}
+        {response.cost ? (
+          <span className="badge">
+            Costo: {formatUsd(response.cost.totalUsd)}
+            {copRate > 0 ? ` · ≈ COP ${Math.round(response.cost.totalUsd * copRate).toLocaleString("es-CO")}` : ""}
+          </span>
+        ) : null}
       </div>
 
       <DynamicTable items={response.result?.items ?? []} />
@@ -2373,6 +2784,60 @@ function StageTabPanel({ title, response }: { title: string; response: ApiRespon
             subtle
           />
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+function RunSummary({
+  stage1,
+  stage2,
+  stage3,
+  copRate
+}: {
+  stage1: ApiResponse | null;
+  stage2: ApiResponse | null;
+  stage3: ApiResponse | null;
+  copRate: number;
+}) {
+  const stageData = [
+    { label: "E1", response: stage1 },
+    { label: "E2", response: stage2 },
+    { label: "E3", response: stage3 }
+  ].filter((s) => s.response?.usage || s.response?.cost);
+
+  if (!stageData.length) return null;
+
+  let totalUsd = 0;
+  let totalTokens = 0;
+
+  for (const { response } of stageData) {
+    totalUsd += response?.cost?.totalUsd ?? 0;
+    totalTokens += response?.usage?.totalTokens ?? 0;
+  }
+
+  const cop = copRate > 0 ? Math.round(totalUsd * copRate) : null;
+
+  return (
+    <div className="runSummary">
+      <div className="runSummaryHeader">
+        <span className="runSummaryTitle">Resumen de corrida</span>
+        <span className="badge">{totalTokens.toLocaleString("es-CO")} tok</span>
+        <span className="badge">{formatUsd(totalUsd)}</span>
+        {cop != null ? <span className="badge">≈ COP {cop.toLocaleString("es-CO")}</span> : null}
+      </div>
+      <div className="runSummaryRows">
+        {stageData.map(({ label, response }) => {
+          if (!response) return null;
+          const usd = response.cost?.totalUsd ?? 0;
+          const tokens = response.usage?.totalTokens ?? 0;
+          const stageCop = copRate > 0 ? Math.round(usd * copRate) : null;
+          return (
+            <span key={label} className="runSummaryRow">
+              <strong>{label}</strong>: {getModelDisplayName(response.model)} · {tokens.toLocaleString("es-CO")} tok · {formatUsd(usd)}{stageCop != null ? ` · ≈ COP ${stageCop.toLocaleString("es-CO")}` : ""}
+            </span>
+          );
+        })}
       </div>
     </div>
   );

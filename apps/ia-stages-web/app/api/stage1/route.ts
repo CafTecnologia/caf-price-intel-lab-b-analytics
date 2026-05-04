@@ -28,6 +28,7 @@ export async function POST(request: Request) {
 
     const analysisIdParam = optionalFormString(formData.get("analysisId"));
     const odooProjectId = optionalFormString(formData.get("odooProjectId"));
+    const modelOverride = optionalFormString(formData.get("model"));
 
     let analysisId: string;
     if (analysisIdParam) {
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
       fileHash: computeBufferHash(fileBuffer)
     });
 
-    const output = await runStage1ForFile(file, runId);
+    const output = await runStage1ForFile(file, runId, modelOverride);
     saveStageSuccess("stage1", output, Date.now() - startedAt);
 
     const meta = getRunAnalysisMeta(output.runId);
