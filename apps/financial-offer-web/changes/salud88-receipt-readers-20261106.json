@@ -1,0 +1,40 @@
+{
+  "owner": "salud_automatizaciones/88",
+  "status": "DEV_CANONICAL_SOURCE_AND_ISOLATED_RUNTIME_VERIFIED_PRODUCTION_PENDING",
+  "files": {
+    "apps/financial-offer-web/lib/store.ts": {
+      "before_sha256": "db5424a7a6252fc4377d3b1d94104224077a7a63165e24faecc9bfd518049fbd",
+      "after_sha256": "975b43d64c4e38c03a57d8f717d84c4f10bef2b48a426dd91ea61656bd2176b2"
+    },
+    "apps/financial-offer-web/lib/versioned-file-reader.ts": {
+      "before_sha256": "f2afc1b7e8a7656fde68ae4e7456ed742d063893c99a18540843365021b2ee2d",
+      "after_sha256": "b89ed0a691d2d0967dc01d3c01e431c48dc505389fe1e67fd5ed48812ff87171"
+    },
+    "apps/financial-offer-web/test/versioned-file-reader-integrity88.test.ts": {
+      "before_sha256": null,
+      "after_sha256": "6b95a9519520129ae8dced938c7c647c373b1a4cb2005fdff05774178a6f1f60"
+    },
+    "apps/financial-offer-web/test/finance-single-snapshot.test.ts": {
+      "before_sha256": "1e14a7523d3d15ade0a1a55c7b47c4633219e5d6267bde317191f212cbada349",
+      "after_sha256": "dc2a1f4e5fcf1a06cb14112baf30cd016ded5f29513d48bcb247ade550203324"
+    },
+    "apps/financial-offer-web/vitest.config.ts": {
+      "before_sha256": "55ed104030751322a17f834874a8241318cbe49b49ae9deead916102940fdd49",
+      "after_sha256": "07d85afaa4f2bcbdf62e9e137b393f7b92680e1d06801eece51105710da56981"
+    }
+  },
+  "production_changed": false,
+  "selective_only": true,
+  "shared_repo_HEAD": "9405320643d147a293acc8da9304138b46ccda2b",
+  "source_dependency_snapshot_sha256": "0078b1e8d5f1f6baa039833ccc81d0529987e37bd12196c68ac0b6fbb28d3c0a",
+  "build_id": "X6T8Z8PlFUsQ42FuXgLDa",
+  "verification": "334tests+types+build+servedHTTP401/200/404+real on-disk reassignment in same server; resource fixture RSS301981696->206532608B, CPU tradeoff recorded",
+  "contract_delta": {
+    "id": "docker:caf-prod-financial-offer-web",
+    "contract_revision": "2026-11-06.8805",
+    "failure_policy": {
+      "receipt_snapshot_integrity": "Las lecturas de recibos comparten un snapshot validado con hash de contenido por stream acotado; no hay TTL que oculte nuevas respuestas. Se conservan autenticacion previa, pertenencia al calculo, clon defensivo, historia y escritor atomico. Una lectura corrupta/inestable falla sin afirmar entrega. Prueba exacta DEV:334tests+TypeScript+build+HTTP servido401/200/404 y cambio real de archivo sin reinicio; recursos de fixture no acreditan ahorro ni recuperacion OOM global."
+    }
+  },
+  "baseline_warning": "Canonical app has prior uncommitted/untracked dependencies. These are own deltas bound to exact source hashes, not permission to deploy this entire branch or copy DEV data/config. Preserve foreign baseline; prepare PROD build and tested exact preimage before publication."
+}
