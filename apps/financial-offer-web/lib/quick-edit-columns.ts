@@ -1,0 +1,21 @@
+// Sólo columnas de datos: selección y acciones permanecen disponibles.
+export const QUICK_EDIT_COLUMNS = [
+  { key: "item", label: "Ítem" },
+  { key: "description", label: "Descripción" },
+  { key: "quantity", label: "Cantidad" },
+  { key: "unit", label: "Unidad" },
+  { key: "referenceUnit", label: "Techo unitario" },
+  { key: "referenceTotal", label: "Techo total" },
+  { key: "manualUnitCost", label: "Costo manual" },
+  { key: "selectedCostMode", label: "Costo a usar" },
+  { key: "selectedPriceSourceId", label: "Fuente elegida" },
+  { key: "costUnit", label: "Costo unitario" },
+  { key: "costTotal", label: "Costo total" },
+  { key: "associatedCosts", label: "Servicios / costos" },
+  { key: "offerUnit", label: "Oferta unitaria" },
+  { key: "offerTotal", label: "Oferta total" },
+  { key: "utility", label: "Utilidad" },
+  { key: "margin", label: "Margen" },
+  { key: "notes", label: "Notas" },
+  { key: "status", label: "Estado" },
+];

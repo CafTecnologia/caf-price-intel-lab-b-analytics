@@ -1,0 +1,42 @@
+{
+  "name": "simulador-financiero-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "npm run build:chatgpt-ui && next build",
+    "start": "next start",
+    "test": "vitest run",
+    "build:chatgpt-ui": "node scripts/build-chatgpt-ui.mjs"
+  },
+  "dependencies": {
+    "@tiptap/extension-image": "^3.28.0",
+    "@tiptap/extension-link": "^3.28.0",
+    "@tiptap/extension-table": "^3.28.0",
+    "@tiptap/extension-table-cell": "^3.28.0",
+    "@tiptap/extension-table-header": "^3.28.0",
+    "@tiptap/extension-table-row": "^3.28.0",
+    "@tiptap/react": "^3.28.0",
+    "@tiptap/starter-kit": "^3.28.0",
+    "ag-grid-community": "^36.0.2",
+    "ag-grid-react": "^36.0.2",
+    "lucide-react": "^1.47.0",
+    "next": "^15.3.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "xlsx": "^0.18.5",
+    "zod": "^4.1.13",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@modelcontextprotocol/ext-apps": "1.7.5"
+  },
+  "devDependencies": {
+    "@types/node": "25.6.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "^19.1.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4",
+    "esbuild": "0.25.12"
+  },
+  "description": "Suite de análisis técnico y financiero — Simulador Financiero: ingesta JSON/API, simulación de costos y oferta económica."
+}

@@ -1,0 +1,45 @@
+.panel { border:0; border-radius:0; padding:0; margin:0; background:transparent; font-size:13px; }
+.panel > div:nth-child(2):not([hidden]) { padding:12px; margin-top:6px; background:var(--panel,#fff); border:1px solid var(--border,#dedbd5); border-radius:8px; }
+.heading,.heading strong,.viewerHeading,.sheetTools { display:flex; align-items:center; gap:8px; }
+.heading,.viewerHeading { justify-content:space-between; }
+.heading > button:not(.toggle) { min-height:32px; width:32px; padding:4px; border:0; background:transparent; }
+.heading strong { font-size:13px; font-weight:500; white-space:nowrap; }
+.toggle { display:flex; align-items:center; gap:8px; width:100%; min-height:32px; padding:0; border:0; background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+.chevron { margin-left:auto; transition:transform .15s; }
+.toggle[aria-expanded="true"] .chevron { transform:rotate(180deg); }
+.trail { display:flex; flex-wrap:wrap; gap:4px; margin:5px 0; }
+.trail button { border:0; background:none; padding:3px; color:inherit; cursor:pointer; font-size:12px; }
+.trail button:disabled { opacity:.7; cursor:default; }
+.files { max-height:205px; overflow:auto; display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:3px 16px; }
+.file { display:flex; align-items:center; gap:8px; min-width:0; border:0; border-radius:6px; background:transparent; color:inherit; padding:8px; text-align:left; cursor:pointer; }
+.file:hover { background:#f1eee8; }
+.file span { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.file small { color:#756e65; white-space:nowrap; }
+.dialog { position:fixed; inset:0; width:min(1100px,calc(100vw - 48px)); height:82vh; max-width:none; max-height:calc(100vh - 48px); margin:auto; padding:0; border:1px solid #d8d4cd; border-radius:13px; background:#fff; color:#26221d; box-shadow:0 20px 90px #0006; overflow:hidden; }
+.dialog::backdrop { background:#0f172a88; backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px); }
+.viewerHeading { height:54px; padding:8px 14px; border-bottom:1px solid #dedbd5; }
+.viewerHeading strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.content { height:calc(100% - 54px); overflow:auto; }
+.content > p { padding:20px; }
+.content iframe { width:100%; height:100%; border:0; display:block; }
+.image { height:calc(100% - 50px); overflow:auto; padding:16px; background:#f3f1ee; }
+.image img { display:block; margin:auto; max-width:100%; max-height:100%; object-fit:contain; }
+.word { max-width:850px; margin:18px auto; padding:20px 30px; line-height:1.65; }
+.word p,.word td { white-space:pre-wrap; }
+.word img { max-width:100%; height:auto; margin:12px 0; }
+.notice { font-size:12px; color:#70695f; background:#f6f3ed; padding:10px; border-radius:6px; }
+.tableScroll { overflow:auto; }
+.tableScroll table { border-collapse:collapse; table-layout:auto; width:max-content; min-width:100%; max-width:none; font-size:13px; }
+.tableScroll td,.tableScroll th { border:1px solid #ddd8cf; padding:7px 10px; min-width:120px; max-width:450px; overflow-wrap:break-word; text-align:left; vertical-align:top; }
+.tableScroll th { background:#f2eee8; min-width:40px; color:#746b5e; }
+.excel { padding:12px; }
+.excel .tableScroll { max-height:calc(82vh - 185px); }
+.sheetTools { justify-content:space-between; flex-wrap:wrap; padding:8px 0; font-size:12px; }
+.sheetTools select { margin-left:8px; max-width:300px; }
+@media(max-width:600px) { .dialog { width:calc(100vw - 16px); height:88vh; } .word { padding:12px; } .files { grid-template-columns:1fr; } }
+/* Abrir en Drive junto a Cerrar (Carlos, 29/10). */
+.viewerHeading > a { margin-left:auto; white-space:nowrap; display:inline-flex; align-items:center; gap:6px; text-decoration:none; }
+
+@media(max-width:767px) { .toggle,.trail button,.file { min-height:44px; } .toggle { min-width:44px; } .heading > button:not(.toggle) { min-width:44px; min-height:44px; } }
+
+.embedded > div:nth-child(2):not([hidden]) { position:static; padding:8px 0 0; margin:0; border:0; border-radius:0; box-shadow:none; width:auto; max-height:none; }

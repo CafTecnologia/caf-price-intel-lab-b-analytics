@@ -1,0 +1,16 @@
+{
+  "reference": "Production served source inventoried 2026-11-07; Carlos requested current production design in DEV, preserving DEV-only labs. Replaces 2026-10-26 reference only for these six shared files.",
+  "sourceHashes": {
+    "app/globals.css": "74b9508024e6b96f2422f7511c3ed7acf733165d0e2c08f381fc67c7b400d99b",
+    "components/calculation-command-bars.tsx": "9f5e802a9fb5bcf3ba1dfdd654ac0324ba15ef3499228709cfe0bbcf9ba489c0",
+    "components/decision-table.tsx": "92c1314ba5e4a50cf4235e503c2efda6c028013484a0be5a659ddf8bfad307b4",
+    "components/quick-edit-grid.tsx": "b5c58f77567eabd2d2c848b39072e6f07a571f875ce1f36ae5d73f7c7761c177",
+    "lib/quick-edit-sheet.ts": "1da0561533235e8c1d4c57e5282a5a150286829220ffb4dacb743bf137d86495",
+    "lib/row-filters.ts": "1ebce2ca7b8dac437ed339093ecd13ff0cb66fb4114bb665fd4b05eb030ca63e"
+  },
+  "detailHtml": {
+    "mobile": "58abf48e19d12ed418984e1d1e1bafa14cd2f609d6086fa0d18a892b23316fd3",
+    "desktop": "a3d6dfde2429ec60b8184c6ca57fee5dae895d03f62eec320ae03ef8a3ea31e0"
+  },
+  "detailEvidence": "Old approved detail and current production detail matched byte-for-byte in both layouts before capturing these portable hashes; finance-remaining-complete.log."
+}

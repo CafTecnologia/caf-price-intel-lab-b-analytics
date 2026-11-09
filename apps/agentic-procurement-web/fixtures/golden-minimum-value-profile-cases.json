@@ -1,0 +1,191 @@
+{
+  "contract": "caf-work-profile-golden/v1",
+  "profileId": "minimum_value_initial_assessment_v1",
+  "cases": [
+    {
+      "id": "multi-lot-unit-reference-prices",
+      "project": {
+        "processNumber": "MC-GOLDEN-001-2026",
+        "projectName": "Suministro de elementos de ferreteria",
+        "modality": "Minima cuantia"
+      },
+      "workbook": {
+        "name": "formato-economico.xlsx",
+        "sheet": "Oferta economica",
+        "rows": [
+          [
+            "No. de lote",
+            "No. Item",
+            "Nombre",
+            "Descripcion",
+            "Unidad",
+            "Cantidad",
+            "Precio techo unitario"
+          ],
+          [
+            "Lote 1",
+            "1",
+            "Cinta aislante",
+            "Rollo de 20 m",
+            "UN",
+            "10",
+            "$ 12.500"
+          ],
+          [
+            "Lote 1",
+            "2",
+            "Juego de destornilladores",
+            "Juego x 6 piezas",
+            "JGO",
+            "4",
+            "$ 45.000"
+          ],
+          [
+            "Lote 2",
+            "1",
+            "Guantes de nitrilo",
+            "Caja x 100 unidades",
+            "CJ",
+            "6",
+            "$ 28.900"
+          ]
+        ]
+      },
+      "expected": {
+        "itemCount": 3,
+        "lots": [
+          "Lote 1",
+          "Lote 1",
+          "Lote 2"
+        ],
+        "items": [
+          "1",
+          "2",
+          "1"
+        ],
+        "ceilingPrices": [
+          "$ 12.500",
+          "$ 45.000",
+          "$ 28.900"
+        ]
+      }
+    },
+    {
+      "id": "unit-reference-price-header-variant",
+      "project": {
+        "processNumber": "MC-GOLDEN-001B-2026",
+        "projectName": "Suministro con formato de precio de referencia",
+        "modality": "Minima cuantia"
+      },
+      "workbook": {
+        "name": "precios-referencia.xlsx",
+        "sheet": "Precios",
+        "rows": [
+          [
+            "Item",
+            "Nombre",
+            "Unidad",
+            "Cantidad",
+            "Precio de referencia unitario"
+          ],
+          [
+            "1",
+            "Marcador borrable",
+            "UN",
+            "12",
+            "$ 6.500"
+          ]
+        ]
+      },
+      "expected": {
+        "itemCount": 1,
+        "ceilingPrices": [
+          "$ 6.500"
+        ]
+      }
+    },
+    {
+      "id": "total-budget-without-unit-prices",
+      "project": {
+        "processNumber": "MC-GOLDEN-002-2026",
+        "projectName": "Mantenimiento preventivo",
+        "modality": "Minima cuantia"
+      },
+      "document": {
+        "name": "estudios-previos.txt",
+        "text": "PRESUPUESTO OFICIAL TOTAL: CUATRO MILLONES QUINIENTOS MIL PESOS ($ 4.500.000) COP. El proceso no publica precios de referencia unitarios. El valor corresponde exclusivamente al presupuesto total disponible."
+      },
+      "expected": {
+        "hasUnitReferencePrices": false,
+        "hasTotalBudgetOnly": true,
+        "totalBudget": "$ 4.500.000",
+        "status": "insufficient_evidence"
+      }
+    },
+    {
+      "id": "supported-and-invented-requirements",
+      "project": {
+        "processNumber": "MC-GOLDEN-003-2026",
+        "projectName": "Adquisicion de papeleria",
+        "modality": "Minima cuantia"
+      },
+      "document": {
+        "name": "invitacion-publica.txt",
+        "text": "El proponente debera presentar garantia de seriedad equivalente al diez por ciento del valor de la oferta. Tambien debe aportar certificado de existencia y representacion legal vigente."
+      },
+      "proposedRequirements": [
+        {
+          "id": "R1",
+          "title": "Garantia de seriedad",
+          "requirement": "Presentar garantia de seriedad del diez por ciento.",
+          "excerpt": "garantia de seriedad equivalente al diez por ciento del valor de la oferta"
+        },
+        {
+          "id": "R2",
+          "title": "Oficina local",
+          "requirement": "Tener oficina en el municipio contratante.",
+          "excerpt": "oficina permanente en el municipio contratante"
+        }
+      ],
+      "expected": {
+        "acceptedRequirementIds": [
+          "R1"
+        ],
+        "status": "needs_review"
+      }
+    },
+    {
+      "id": "long-scanned-governing-document",
+      "project": {
+        "processNumber": "MC-GOLDEN-004-2026",
+        "projectName": "Compra de elementos de aseo",
+        "modality": "Minima cuantia"
+      },
+      "document": {
+        "name": "invitacion-publica-escaneada.pdf",
+        "pageCount": 72,
+        "role": "governing"
+      },
+      "expected": {
+        "catalogState": "deferred",
+        "documentMapOcrCalls": 0,
+        "supervisionOcrCalls": 0,
+        "requirementsPageRanges": [
+          [
+            1,
+            6
+          ],
+          [
+            34,
+            39
+          ],
+          [
+            67,
+            72
+          ]
+        ],
+        "economicOcrCalls": 0
+      }
+    }
+  ]
+}

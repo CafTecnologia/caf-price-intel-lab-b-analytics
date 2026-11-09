@@ -1,0 +1,38 @@
+{
+  "name": "caf-agentic-procurement-lab",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 18110",
+    "build": "next build",
+    "start": "next start -p 18110",
+    "lint": "next lint",
+    "test": "tsx --test tests/*.test.ts",
+    "test:human-learning": "tsx scripts/evaluate-human-learning.ts",
+    "test:live-correction": "tsx scripts/evaluate-live-human-correction.ts",
+    "test:real": "tsx scripts/evaluate-real-documents.ts",
+    "test:live-golden": "tsx scripts/evaluate-live-golden.ts",
+    "test:providers": "tsx scripts/provider-smoke.ts"
+  },
+  "dependencies": {
+    "@e965/xlsx": "0.20.3",
+    "lucide-react": "^0.468.0",
+    "next": "15.5.21",
+    "pdfjs-dist": "^6.2.108",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "zod": "^4.5.4",
+    "pdf-lib": "1.17.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  },
+  "overrides": {
+    "postcss": "8.5.22",
+    "sharp": "0.35.0"
+  }
+}

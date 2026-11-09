@@ -1,0 +1,13 @@
+{
+  "items": [
+    {
+      "Item": 1,
+      "Nombre": "LIBRO DE ACTAS 200 FOLIOS",
+      "Descripcion": "Libro de actas empastado de 200 folios para registro institucional.",
+      "Und de medida": "UN",
+      "Cant": 1,
+      "Precio techo unitario": "$ 21.420",
+      "Notas del item": "Producto abierto; verificar que la presentacion corresponda a 200 folios."
+    }
+  ]
+}

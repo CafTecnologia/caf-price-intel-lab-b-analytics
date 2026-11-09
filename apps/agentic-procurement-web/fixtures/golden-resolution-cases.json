@@ -1,0 +1,77 @@
+{
+  "contract": "caf-golden-resolution/v1",
+  "cases": [
+    {
+      "id": "direct-exact",
+      "name": "TOMACORRIENTE DOBLE 15A RETIE",
+      "unit": "UN",
+      "description": "Blanco, 2P+T, 15A, certificado RETIE vigente.",
+      "expectedMode": "direct_product",
+      "expectedAutomation": "automatic",
+      "expectedOutcome": "accept"
+    },
+    {
+      "id": "pack-known-requirement",
+      "name": "TORNILLO PUNTA LENTEJA 6 MM",
+      "unit": "UN",
+      "description": "Se requieren 1000 unidades; puede comprarse en cajas.",
+      "expectedMode": "pack_conversion",
+      "expectedAutomation": "assisted",
+      "expectedOutcome": "human_review"
+    },
+    {
+      "id": "bulk-proration",
+      "name": "CABLE SOLAR ROJO 6 MM2",
+      "unit": "ML",
+      "description": "Se requieren 37 metros; el mercado vende rollos.",
+      "expectedMode": "bulk_proration",
+      "expectedAutomation": "assisted",
+      "expectedOutcome": "human_review"
+    },
+    {
+      "id": "bundle-complete",
+      "name": "KIT DE PUESTO DE TRABAJO",
+      "unit": "KIT",
+      "description": "Incluye mesa, pasacables y canaleta.",
+      "expectedMode": "bundle_bom",
+      "expectedAutomation": "automatic",
+      "expectedOutcome": "accept"
+    },
+    {
+      "id": "product-service",
+      "name": "CAMARA IP INSTALADA Y CONFIGURADA",
+      "unit": "UN",
+      "description": "Incluye cámara, soporte, cableado, instalación y configuración.",
+      "expectedMode": "product_plus_service",
+      "expectedAutomation": "assisted",
+      "expectedOutcome": "human_review"
+    },
+    {
+      "id": "custom-sample",
+      "name": "MANIJA PARA VENTANA SEGUN MUESTRA",
+      "unit": "UN",
+      "description": "Fabricación o adaptación contra muestra física no disponible.",
+      "expectedMode": "custom_fabrication",
+      "expectedAutomation": "human",
+      "expectedOutcome": "human_review"
+    },
+    {
+      "id": "ambiguous-unit",
+      "name": "PINTURA EXTERIOR BLANCA",
+      "unit": "UN",
+      "description": "No indica volumen, peso ni presentación.",
+      "expectedMode": "ambiguous",
+      "expectedAutomation": "human",
+      "expectedOutcome": "human_review"
+    },
+    {
+      "id": "no-result",
+      "name": "REPUESTO DESCONTINUADO REF XZ-991",
+      "unit": "UN",
+      "description": "Referencia cerrada sin fuente comercial observada.",
+      "expectedMode": "direct_product",
+      "expectedAutomation": "automatic",
+      "expectedOutcome": "no_result"
+    }
+  ]
+}
