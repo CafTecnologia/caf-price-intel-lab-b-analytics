@@ -1,0 +1,39 @@
+{
+  "name": "extraccion-datos-estrategicos-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Suite de análisis técnico y financiero — Extracción de datos estratégicos: pipeline por etapas e ingesta hacia Simulador Financiero.",
+  "scripts": {
+    "dev": "next dev",
+    "dev:vps": "next dev --hostname 0.0.0.0 --port 18031",
+    "build": "next build",
+    "start": "next start",
+    "start:vps": "next start --hostname 0.0.0.0 --port 18031",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clasp:login": "clasp login",
+    "clasp:push": "clasp push",
+    "clasp:pull": "clasp pull",
+    "clasp:open": "clasp open",
+    "clasp:deploy": "clasp deploy"
+  },
+  "dependencies": {
+    "@google/genai": "^1.32.0",
+    "better-sqlite3": "^12.9.0",
+    "mammoth": "^1.11.0",
+    "next": "^16.0.1",
+    "pdf-parse": "^2.4.5",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@google/clasp": "^2.5.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

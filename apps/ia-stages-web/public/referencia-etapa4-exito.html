@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Referencia: Etapa 4 tras enviar (UI esperada)</title>
+    <style>
+      :root {
+        --bg: #f6f7f8;
+        --surface: #fff;
+        --border: #d8dde3;
+        --text: #17202a;
+        --muted: #5f6b76;
+        --accent: #145a7a;
+        --accent-strong: #0d3f57;
+      }
+      body {
+        font-family: Arial, Helvetica, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        margin: 0;
+        padding: 32px 16px 48px;
+      }
+      .page {
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 18px;
+        margin-bottom: 18px;
+      }
+      h2 {
+        margin: 0 0 12px;
+        font-size: 1.12rem;
+      }
+      .notice {
+        margin-top: 14px;
+        border: 1px solid #b8d4c0;
+        border-radius: 6px;
+        background: #e8f4ea;
+        color: #1a3d22;
+        padding: 10px 12px;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 0.92rem;
+        margin: 8px 0 0;
+      }
+      .inlineCode {
+        font-family: ui-monospace, Consolas, monospace;
+        font-size: 0.88em;
+        background: #eef2f4;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 18px;
+      }
+      a.linkAsButton {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--accent);
+        border-radius: 6px;
+        background: var(--accent);
+        color: #fff;
+        min-height: 42px;
+        padding: 0 14px;
+        font: inherit;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      a.linkAsButton:hover {
+        background: var(--accent-strong);
+      }
+      .bad {
+        margin-top: 20px;
+        padding: 12px;
+        border-radius: 6px;
+        background: #fff2f0;
+        border: 1px solid #ffb8ad;
+        color: #5a1a14;
+        font-size: 0.92rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <p class="muted" style="margin-bottom: 16px">
+        Archivo estático de referencia (no requiere Etapa 3). Abrilo como
+        <code class="inlineCode">http://127.0.0.1:18032/referencia-etapa4-exito.html</code> con el servidor del fork.
+      </p>
+      <section class="panel">
+        <h2>Etapa 4: Preparación análisis financiero</h2>
+        <p class="muted">(Tras enviar con éxito deberías ver algo equivalente a esto.)</p>
+        <div class="notice">
+          Listo: el cálculo quedó en el simulador. Usá el botón de abajo para abrirlo aquí mismo (vista integrada en
+          /finanzas).
+        </div>
+        <p class="muted">ID del cálculo: <code class="inlineCode">855f6583-48f9-4452-85f8-e36aa95f6c01</code></p>
+        <div class="actions">
+          <a class="linkAsButton" href="/finanzas?calc=855f6583-48f9-4452-85f8-e36aa95f6c01"
+            >Ver cálculo en simulador (misma app)</a
+          >
+        </div>
+        <div class="bad">
+          <strong>Ya no</strong> debería ser el paso principal un enlace largo tipo
+          <code class="inlineCode">http://127.0.0.1:18030/calculations/…</code> abriéndose en otra pestaña.
+        </div>
+      </section>
+    </div>
+  </body>
+</html>
