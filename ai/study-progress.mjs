@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 
 const hash=x=>crypto.createHash('sha256').update(typeof x==='string'?x:JSON.stringify(x)).digest('hex');
 const uuid=/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
-const files=new Map([['inventory.json',2000000],['originales.json',2000000],['auditoria_documental.json',2000000],['research-checkpoint.json',200000],['research-evidence.jsonl',500000],['evidencia_comercial.json',3000000],['evidencia_busquedas.json',200000],['study-progress.json',3000000],['resultado_finanzas.json',3000000],['soporte.md',2000000]]);
+const files=new Map([['inventory.json',2000000],['originales.json',2000000],['auditoria_documental.json',2000000],['captura_documental.json',3000000],['investigacion_checkpoint.json',3000000],['research-checkpoint.json',200000],['research-evidence.jsonl',500000],['evidencia_comercial.json',3000000],['evidencia_busquedas.json',200000],['study-progress.json',3000000],['resultado_finanzas.json',3000000],['soporte.md',2000000]]);
 export function documentIdentity(study){
  if(!Array.isArray(study?.documents)||!study.documents.length)throw Error('No hay documentos congelados para recuperar.');
  return hash(study.documents.map(d=>({id:d.id,name:d.name,sha256:hash(d.text)})));

@@ -40,3 +40,5 @@ Los contratos de Salud se actualizan en el candidato, sin otro monitor.
 La instalación debe usar los publicadores y gates existentes, comparar las
 preimágenes, conservar cambios concurrentes y promover solo los archivos del
 delta. La lista revisable y el patch están en candidate-manifest.json y change.patch.
+
+Ampliación comprobada: conserva captura_documental.json e investigacion_checkpoint.json, presentes en el proyecto SENA Distrito Capital CSF. Los 13 casos vuelven a pasar. El supervisor vigente previo a publicación devuelve cero fallos.
