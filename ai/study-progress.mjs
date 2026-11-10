@@ -85,7 +85,7 @@ function restoreArtifact(source,target,name,digest){
  try{
   fs.copyFileSync(from,temporary,fs.constants.COPYFILE_EXCL|fs.constants.COPYFILE_FICLONE);
   if(fileDigest(temporary)!==digest)throw Error('La copia del avance no coincide.');
-  fs.chownSync(temporary,owner.uid,owner.gid);fs.chmodSync(temporary,0o600|(fs.statSync(from).mode&0o100));fs.renameSync(temporary,final);
+  fs.chmodSync(temporary,0o600|(fs.statSync(from).mode&0o100));fs.chownSync(temporary,owner.uid,owner.gid);fs.renameSync(temporary,final);
  }finally{if(fs.existsSync(temporary))fs.unlinkSync(temporary);}
 }
 
