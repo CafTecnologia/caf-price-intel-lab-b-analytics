@@ -953,7 +953,6 @@
         "status": "enabled_dev_verified_after_strict_idle_gate_reload"
       },
       "document_ingestion_contract": {
-        "aggregate_chars_max": 2000000,
         "dependencies": [
           "Existing Odoo and database",
           "Existing Drive folder reader and OAuth",
@@ -962,17 +961,15 @@
         "durable_result": "Worksheet inventory and complete retained ranges in existing immutable document snapshot; worker retains byte-identical original with SHA256. Explicit aggregate/error prevents partial submission after inspecting available files.",
         "evidence": "finance-excel-ingest-20261015: real Pereira45/JEP6 items; large2500 items; hidden sheets/lots/formulas/missing data/budgets and original integrity contracts.",
         "identity": "Same original ID/name/SHA; reading ranges never create contractual lots.",
-        "non_workbook_chars_max": 350000,
-        "original_documents_max": 25,
         "reading_block_chars_max": 90000,
-        "revision": "2026-10-15.xlsx1",
-        "selection": "Inspect all sheets. Only strict SECOP two-column UNSPSC catalogue beside verified PriceList may omit unreferenced categories; preserve formula/name/dynamic dependencies and ambiguous/hidden sheets."
+        "revision": "2026-11-10.simple-study.1",
+        "selection": "All supported readable files in the selected folder, with complete pagination and original identity. No 25-file or text-length study gate. Initial input verification does not prescribe inventory, fiscal interpretation or research phases."
       },
       "evidence_revision": "2026-10-19.2",
       "expected_result": "Los estudios de mercado elegibles producen un artefacto durable o un fallo explícito vigente.",
       "failure_policy": {
         "evidence": "completed_at/completed_by_id del cierre protegido, recibo durable, documentos verificables, ejecución/revisión destino, resultado validado y cálculo persistido.",
-        "individual": "Carpeta ambigua/vacía espera; más25 documentos o destino ambiguo requieren revisión humana. Cierre nuevo no borra recibos anteriores.",
+        "individual": "Carpeta ambigua/vacía o archivo ilegible requieren preparación; el número de archivos, las cantidades desconocidas y un inventario intermedio no bloquean la investigación. El contrato final de Finanzas valida la entrega.",
         "resume": "Nuevo insumo permite el próximo preflight; reparación Drive requiere lectura válida. Resultado sólo con revisión coincidente, job completed, cálculo e ítems persistidos.",
         "scope_proof": "Recibo por ejecución humana y revisión destino; Drive inaccesible es dependencia, carpeta vacía es espera válida, error de extracción es caso individual.",
         "stop": "Admisión no inicia llamadas pagadas. Motor existente conserva validación/publicación; cambios de esquema/plantilla requieren gate. No declarar resultado por cola.",
@@ -8066,13 +8063,14 @@
         },
         "inventory_first": {
           "revision": "2026-11-09.91.8",
-          "expected": "New main Codex studies persist inventory before commercial research, using the unchanged original skill and document scope. First phase has no web search/browser capability; validate file structure only, do not interpret prices or business rules. Second phase retains full original skill, source documents and final validator. Both phases share the original deadline. Recovery, financial/pilot/catalog/review and other providers preserve their existing paths.",
+          "expected": "Historical inventory-first evidence retained; the intermediate inventory gate and separate inference phase are removed from the initial study path.",
           "evidence": "/opt/caf-dev/worktrees/financial-recovery91-20261109/inventory-first.test.mjs",
           "dependencies": [
             "Odoo CafTest",
             "same frozen study inputs",
             "served study profile validation and immutable inventory"
-          ]
+          ],
+          "status": "superseded_by_simple_skill_execution_20261110"
         }
       },
       "study_runtime_io93": {
@@ -8098,6 +8096,14 @@
           "resume": "Readable dependency and real original-document transport proof plus reopened analysis",
           "evidence": "Same original source hash, role, tool schema, independent document content and source event"
         }
+      },
+      "study_simple_flow": {
+        "revision": "2026-11-10.simple-study.1",
+        "owner": "Carlos/Codex",
+        "expected": "One prepared folder -> one execution of the existing CAF skill -> final Finance JSON contract. No mandatory intermediate inventory, fixed model/effort, row-count/quantity or recovery-engine business gates. Saved progress remains evidence for the same skill.",
+        "caller_context": "The authenticated worker supplies its actual workdir on every Responses request, including compaction; the provider temporary read-only environment must not become the caller context.",
+        "evidence": "tests/simple-study.test.mjs and tests/test_simple_contract.py in financial-simple-cloud-20261110 candidate",
+        "coverage_limit": "Regression and served-source checks; real IA and production activation are separate. No existing job restarted."
       }
     },
     "service:optional-product-evidence-dev": {

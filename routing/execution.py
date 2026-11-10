@@ -161,6 +161,45 @@ def fallback_envelope_with_search_repair(result,tools,operation,model,usage,repa
     return fallback_envelope(fixed,tools,operation,model),model,usage,True
 
 
+def executor_context(payload, cwd):
+    """Keep the caller's actual folder across history compaction.
+
+    This is execution metadata from the authenticated worker, not a new gate.
+    It grants no capability; the worker still executes its own tools.
+    """
+    if not isinstance(cwd, str) or not re.fullmatch(
+            r'/data/work/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}(?:-attempt-[0-9]+)?', cwd):
+        return payload
+    return dict(payload, instructions=(
+        'El ejecutor de esta solicitud trabaja en ' + cwd + '. '
+        'Sus herramientas y archivos pertenecen a ese directorio, también después '
+        'de resumir el historial. El entorno temporal del proveedor es independiente.\n'
+        + (payload.get('instructions') or '')))
+
+
+def fallback_prompt(payload, tools):
+    """Describe the caller's task without exporting the provider's environment.
+
+    The VPS is an inference backend, not the owner of the caller's files/tools.
+    This also applies to requests without tools, such as history compaction.
+    """
+    contract = ({'text': 'respuesta final o null', 'tool_calls': [
+        {'name': 'nombre ofrecido', 'namespace': 'solo si pertenece a un grupo ofrecido',
+         'arguments': {}, 'input': 'solo herramientas custom'}]}
+        if any(t['type'] in ('function', 'custom', 'namespace') for t in tools)
+        else {'text': 'respuesta textual solicitada'})
+    return (
+        'Actúa como motor de inferencia del ejecutor descrito en la solicitud JSON. '
+        'Las herramientas propuestas las ejecutará esa aplicación. Tu propia carpeta '
+        'temporal y tus permisos locales pertenecen al proveedor, no al ejecutor. '
+        'Usa las rutas, archivos y capacidades del ejecutor indicados en la solicitud; '
+        'no los sustituyas por tu cwd, sandbox o herramientas locales. '
+        'Si la solicitud resume un historial, conserva el entorno del ejecutor y '
+        'sus avances; no añadas el entorno del proveedor al resumen.\n'
+        'Devuelve JSON con este envoltorio: ' + json.dumps(contract, ensure_ascii=False)
+        + '.\n' + json.dumps(payload, ensure_ascii=False))
+
+
 class RoutingPolicy(models.Model):
     _inherit='caf.ai.routing.policy'
 
@@ -222,6 +261,7 @@ class RoutingPolicy(models.Model):
         payload.update(model=profile.model,reasoning={'effort':task.effort},store=False,
             max_output_tokens=tokens,service_tier='default',truncation='disabled',
             prompt_cache_options={'mode':'implicit','ttl':'30m'})
+        payload=executor_context(payload,self.env.context.get('caf_executor_cwd'))
         payload=json_mode_input(payload)
         search=any(t['type']=='web_search' for t in tools)
         if search: payload['max_tool_calls']=3
@@ -294,8 +334,6 @@ class RoutingPolicy(models.Model):
         if left<1: raise UserError('Se agotó el plazo de ejecución.')
         # No business tool is executed here. The unchanged caller validates and
         # executes tool proposals after this inference request completes.
-        contract={'text':'respuesta final o null','tool_calls':[{'name':'nombre ofrecido','namespace':'solo si pertenece a un grupo ofrecido','arguments':{},'input':'solo herramientas custom'}]} if any(t['type'] in ('function','custom','namespace') for t in tools) else {'text':'respuesta textual solicitada'}
-        prompt='Devuelve JSON con este envoltorio: '+json.dumps(contract,ensure_ascii=False)+'.\n'+json.dumps(payload,ensure_ascii=False)
         images=[]
         def strip_images(value):
             if isinstance(value,list):
@@ -309,7 +347,7 @@ class RoutingPolicy(models.Model):
                     if isinstance(item,(list,dict)):strip_images(item)
         fallback_payload=copy.deepcopy(payload)
         strip_images(fallback_payload)
-        prompt='Devuelve JSON con este envoltorio: '+json.dumps(contract,ensure_ascii=False)+'.\n'+json.dumps(fallback_payload,ensure_ascii=False)
+        prompt=fallback_prompt(fallback_payload,tools)
         if stage in ('health_analysis','caf_health_analysis'):
             prompt=(body.get('instructions') or '')+'\\n'+str(body['input'])
         if search:

@@ -16,26 +16,24 @@ from odoo.exceptions import UserError
 _logger = logging.getLogger(__name__)
 
 
-MARKET_STUDY_MAX_DOCUMENTS = 25
-MARKET_STUDY_MAX_DOCUMENT_CHARS = 350000
-MARKET_STUDY_MAX_TOTAL_CHARS = 2000000
-
-
 class _MarketStudyExtractionError(ValueError):
     pass
 
 
 def _market_study_check_documents(documents):
-    if len(documents) > MARKET_STUDY_MAX_DOCUMENTS:
-        raise _MarketStudyExtractionError("El expediente supera el límite de 25 documentos; no se enviará parcialmente.")
-    total = 0
+    """Check the folder's readable inputs, without interpreting the study."""
+    if not isinstance(documents, list) or not documents:
+        raise _MarketStudyExtractionError("La carpeta no contiene documentos legibles.")
+    seen = set()
     for document in documents:
-        size = len(document.get("text") or "")
-        if size > MARKET_STUDY_MAX_TOTAL_CHARS:
-            raise _MarketStudyExtractionError("El documento %s supera 2000000 caracteres; no se enviará recortado." % document.get("name", "documento"))
-        total += size
-    if total > MARKET_STUDY_MAX_TOTAL_CHARS:
-        raise _MarketStudyExtractionError("El expediente supera 2000000 caracteres; no se enviará recortado.")
+        if (not isinstance(document, dict)
+                or not isinstance(document.get("id"), str) or not document["id"].strip()
+                or not isinstance(document.get("name"), str) or not document["name"].strip()
+                or not isinstance(document.get("text"), str) or not document["text"].strip()):
+            raise _MarketStudyExtractionError("El expediente contiene un documento sin identidad, nombre o texto legible.")
+        if document["id"] in seen:
+            raise _MarketStudyExtractionError("El expediente repite un archivo.")
+        seen.add(document["id"])
 
 
 def _market_study_pdf_page_is_blank(image_path):
@@ -86,14 +84,9 @@ def _market_study_extract_document(content, file_kind):
     import time
     deadline = time.monotonic() + 120
     parts = []
-    length = 0
 
     def append(text):
-        nonlocal length
         if text:
-            length += len(text) + (2 if parts else 0)
-            if length > MARKET_STUDY_MAX_DOCUMENT_CHARS:
-                raise _MarketStudyExtractionError("El documento supera 350000 caracteres; no se enviará recortado.")
             parts.append(text)
 
     if file_kind == "xlsx":
@@ -582,7 +575,7 @@ class ProjectTaskMarketStudy(models.Model):
 
         reader = self.env["caf.drive.reader.service"]
         try:
-            drive_files = reader.list_folder_recursive(folder_id, max_files=26)
+            drive_files = reader.list_folder_recursive(folder_id, max_files=None, max_depth=None)
         except Exception as e:
             msg = _("Error accediendo a Google Drive: %s") % str(e)
             task._dossier_write({"caf_dossier_status": "fallido", "caf_dossier_error": msg})
@@ -599,8 +592,6 @@ class ProjectTaskMarketStudy(models.Model):
         extracted_documents = []
         extraction_errors = []
         try:
-            if len(drive_files) > MARKET_STUDY_MAX_DOCUMENTS:
-                raise _MarketStudyExtractionError("La carpeta supera 25 documentos; no se enviará parcialmente.")
             for f in drive_files:
                 f_name = f.get("name") or "documento"
                 file_kind = task._market_study_file_kind(f_name, f.get("mimeType") or "")
@@ -817,38 +808,9 @@ class ProjectTaskMarketStudy(models.Model):
             "taskId": self.id,
             "dossierRevision": self.caf_dossier_revision or 1,
             "prompt": (
-                "Ejecuta la skill caf-estudio-mercado sobre el expediente disponible. "
-                "Consulta el inventario de hojas y todos los bloques de lectura pertinentes; "
-                "un bloque es un rango del mismo documento, nunca un lote contractual. "
-                "No declares datos faltantes sin contrastar todos los documentos disponibles. "
-                "Conserva todos los renglones, investiga referencias verificables y entrega "
-                "una referencia de costo exploratoria con JSON versión 3 con data_organization más soporte. No exijas "
-                "homologación de compra ni garantía para conservar un comparable; no fijes el "
-                "precio de oferta ni sustituyas la revisión humana de Finanzas. "
-                "Cuando la entidad publique un promedio unitario y no establezca "
-                "otro techo o regla, ese promedio es el precio techo por ítem: "
-                "exporta el valor unitario publicado en ceiling_unit_price, aunque "
-                "la lista lo rotule estimado. Contrasta estudio e IVA; no lo "
-                "recargues ni lo dejes null por faltar la palabra máximo. Si no hay "
-                "techo unitario defendible y sí un techo global oficial, inclúyelo como "
-                "settings.manual_reference_total sin prorratear ni usarlo como costo u oferta. "
-                "Conserva deliverable_type si es defendible. Para cada renglón localizado, "
-                "incluye source_original con descripción, ficha, cantidad, unidad y techo "
-                "literales como texto, además de document y locator; no inventes campos "
-                "ausentes ni presentes una interpretación como transcripción. "
-                "La entrega ordinaria indicada solo como destino o plazo va en soporte, "
-                "no como costo por cada ítem. Si un accesorio forma parte del nombre o "
-                "función del producto y la ficha del comparable no confirma inclusión, "
-                "señala la incertidumbre y busca el entregable completo; esa duda sola "
-                "no crea un costo separado. Crea additional_costs solo para componentes "
-                "separados exigidos o cargos comerciales identificados fuera del precio "
-                "base, con alcance, localizador y evidencia; amount es numérico o null "
-                "si falta precio. No dupliques incluidos ni costos comunes por fila; "
-                "documenta los comunes una vez para Finanzas. No pongas en cero un "
-                "producto conocido por un servicio pendiente ni borres cotizaciones humanas."
+                "Ejecuta la skill caf-estudio-mercado sobre todos los documentos del expediente. "
+                "Entrega resultado_finanzas.json válido para Finanzas y su soporte conforme a la skill."
             ),
-            "model": "gpt-6-sol",
-            "reasoningEffort": "medium",
         }
         if self._market_study_drive_direct_enabled():
             folder_id = self.caf_dossier_folder_id

@@ -14,12 +14,12 @@ export function validateStudyRequest(b,{allowInternalCapability=false}={}) {
   if(typeof b.prompt!=='string'||!b.prompt.trim()||b.prompt.length>20000)throw new Error('Prompt invalido');
   const direct=b.driveScope!==undefined;
   if(direct && b.documents!==undefined)throw new Error('El expediente Drive no admite texto enviado por Odoo');
-  if(!direct && (!Array.isArray(b.documents)||!b.documents.length||b.documents.length>25))throw new Error('Expediente vacio o demasiado grande');
+  if(!direct && (!Array.isArray(b.documents)||!b.documents.length))throw new Error('Expediente vacio');
   const documents=direct?[]:b.documents.map(({id,name,text})=>({id,name,text}));
-  if(documents.some(d=>typeof d.id!=='string'||typeof d.name!=='string'||typeof d.text!=='string'||d.text.length>350000||d.name.length>300))throw new Error('Documento invalido');
+  if(documents.some(d=>typeof d.id!=='string'||typeof d.name!=='string'||typeof d.text!=='string'||!d.id.trim()||!d.name.trim()||!d.text.trim()||d.name.length>300))throw new Error('Documento invalido');
   if(new Set(documents.map(d=>d.id)).size!==documents.length)throw new Error('IDs de documento duplicados');
-  if(documents.reduce((n,d)=>n+d.text.length,0)>2000000)throw new Error('Expediente demasiado grande');
-  if(b.model&&b.model!=='gpt-6-sol'||b.reasoningEffort&&b.reasoningEffort!=='medium')throw new Error('Este flujo requiere gpt-6-sol con esfuerzo medium');
+  if(b.model!==undefined&&(typeof b.model!=='string'||!(/^[a-zA-Z0-9._/-]{1,100}$/).test(b.model)))throw new Error('Modelo invalido');
+  if(b.reasoningEffort!==undefined&&!['low','medium','high','xhigh','max','ultra'].includes(b.reasoningEffort))throw new Error('Esfuerzo invalido');
   const project={id:b.project.id,name:b.project.name};
   if(b.project.closesAt!==undefined){if(typeof b.project.closesAt!=='string'||!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/.test(b.project.closesAt)||!Number.isFinite(Date.parse(b.project.closesAt)))throw new Error('Fecha de cierre invalida');project.closesAt=b.project.closesAt;}
   const _catalogAccess=b._catalogAccess===undefined?undefined:validateInitialCatalogAccess(b._catalogAccess,b,allowInternalCapability);
@@ -30,7 +30,7 @@ export function validateStudyRequest(b,{allowInternalCapability=false}={}) {
   if(direct){
     if(!b.driveScope||typeof b.driveScope!=='object'||Array.isArray(b.driveScope)||!(/^[A-Za-z0-9_-]{10,200}$/).test(b.driveScope.rootFolderId||''))throw new Error('Carpeta Drive invalida');
     const fileIds=b.driveScope.fileIds;
-    if(fileIds!==undefined&&(!Array.isArray(fileIds)||fileIds.length>25||fileIds.some(id=>typeof id!=='string'||!(/^[A-Za-z0-9_-]{10,200}$/).test(id))||new Set(fileIds).size!==fileIds.length))throw new Error('Seleccion Drive invalida');
+    if(fileIds!==undefined&&(!Array.isArray(fileIds)||fileIds.some(id=>typeof id!=='string'||!(/^[A-Za-z0-9_-]{10,200}$/).test(id))||new Set(fileIds).size!==fileIds.length))throw new Error('Seleccion Drive invalida');
     driveScope={rootFolderId:b.driveScope.rootFolderId,...(fileIds===undefined?{}:{fileIds})};
   }
   let _driveCapability;
@@ -56,7 +56,7 @@ export function validateStudyRequest(b,{allowInternalCapability=false}={}) {
   if(allowInternalCapability&&financialScope&&!_financeCapability)throw new Error('Falta capacidad financiera');
   const readCapability=b._workerReadCapability;
   if(allowInternalCapability?typeof readCapability!=='string'||!(/^[a-f0-9]{64}$/).test(readCapability):readCapability!==undefined)throw new Error('Capacidad de lectura del job invalida');
-  return {externalRunId:b.externalRunId.trim(),project,taskId:b.taskId||null,dossierRevision:b.dossierRevision??null,prompt:b.prompt,...(direct?{driveScope}:{documents}),model:'gpt-6-sol',reasoningEffort:'medium',...(_driveCapability?{_driveCapability}:{}),...(allowInternalCapability?{_workerReadCapability:readCapability}:{}),...(previousStudy?{previousStudy}:{}),...(financialScope?{financialScope}:{}),...(_financeTransport?{_financeTransport}:{}),...(_financeCapability?{_financeCapability}:{}),...(_catalogAccess?{_catalogAccess}:{})};
+  return {externalRunId:b.externalRunId.trim(),project,taskId:b.taskId||null,dossierRevision:b.dossierRevision??null,prompt:b.prompt,...(direct?{driveScope}:{documents}),...(b.model?{model:b.model}:{}),...(b.reasoningEffort?{reasoningEffort:b.reasoningEffort}:{}),...(_driveCapability?{_driveCapability}:{}),...(allowInternalCapability?{_workerReadCapability:readCapability}:{}),...(previousStudy?{previousStudy}:{}),...(financialScope?{financialScope}:{}),...(_financeTransport?{_financeTransport}:{}),...(_financeCapability?{_financeCapability}:{}),...(_catalogAccess?{_catalogAccess}:{})};
 }
 export const studyHash=b=>{const {_driveCapability,_workerReadCapability,_financeCapability,_catalogAccess,...stable}=b;return crypto.createHash('sha256').update(JSON.stringify(stable)).digest('hex');};
 export function addEvent(job,type,message,save,extra={}) {
@@ -108,6 +108,12 @@ export function prepareStudy(job,wd,uid) {
   if(job.study._catalogAccess){
     const file=path.join(wd,'catalog-access.json');
     fs.writeFileSync(file,JSON.stringify({jobId:job.id,token:job.study._catalogAccess.token}),{mode:0o600});fs.chownSync(file,uid,1002);
+  }
+  if(!job.study.financialScope&&!job.study._catalogAccess){
+    return [job.study.prompt,
+      'Aplica la skill caf-estudio-mercado sobre manifest.json y los archivos del expediente en este directorio.',
+      'Guarda aquí resultado_finanzas.json válido para Finanzas y el soporte indicado por la skill. Retoma los avances disponibles del mismo expediente.'
+    ].join('\n\n');
   }
   const instructions = [
     job.study.prompt,
@@ -261,7 +267,7 @@ export async function validateStudyOutput(job,wd,{python}={}) {
  if(!json||typeof json!=='object'||Array.isArray(json)||![2,3].includes(json.version)||!Array.isArray(json.items)||!json.items.length)throw new Error('La IA debe entregar JSON version 2 o 3 con al menos un item.');
  let inventory;
  const inventoryFile=path.join(wd,'inventory.json');
- if(fs.existsSync(inventoryFile)){
+ if(job.study?._catalogAccess&&fs.existsSync(inventoryFile)){
    try{inventory=JSON.parse(checkedFile(wd,'inventory.json',2000000));}
    catch{throw new Error('La IA no entrego un inventario JSON legible.');}
    if(!Array.isArray(inventory))throw new Error('El inventario debe ser una lista de renglones.');

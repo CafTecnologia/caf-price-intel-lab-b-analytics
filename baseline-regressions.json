@@ -1,0 +1,14 @@
+[
+  {
+    "case": "26 readable files",
+    "baseline_error": "Expediente vacio o demasiado grande"
+  },
+  {
+    "case": "alternate configured model",
+    "baseline_error": "Este flujo requiere gpt-6-sol con esfuerzo medium"
+  },
+  {
+    "case": "research without mandatory inventory phase",
+    "baseline_error": "No se guardó inventory.json; se conserva el expediente y no se inicia investigación sin inventario."
+  }
+]

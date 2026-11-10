@@ -111,17 +111,17 @@ class CafDriveReaderService(models.AbstractModel):
         queue = [(folder_id, '', 0)]
         files = []
         seen_folders = set()
-        while queue and len(files) < max_files:
+        while queue and (max_files is None or len(files) < max_files):
             current_id, current_path, depth = queue.pop(0)
-            if current_id in seen_folders or depth > max_depth:
+            if current_id in seen_folders or (max_depth is not None and depth > max_depth):
                 continue
             seen_folders.add(current_id)
             page_token = None
-            while len(files) < max_files:
+            while max_files is None or len(files) < max_files:
                 params = {
                     'q': "'%s' in parents and trashed=false" % current_id,
                     'fields': 'nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink,md5Checksum)',
-                    'pageSize': min(200, max_files),
+                    'pageSize': 200 if max_files is None else min(200, max_files),
                     'supportsAllDrives': 'true',
                     'includeItemsFromAllDrives': 'true',
                 }
@@ -135,7 +135,7 @@ class CafDriveReaderService(models.AbstractModel):
                         queue.append((item['id'], item['path'], depth + 1))
                     else:
                         files.append(item)
-                        if len(files) >= max_files:
+                        if max_files is not None and len(files) >= max_files:
                             break
                 page_token = data.get('nextPageToken')
                 if not page_token:

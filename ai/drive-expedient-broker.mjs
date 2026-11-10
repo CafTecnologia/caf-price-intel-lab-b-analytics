@@ -16,7 +16,7 @@ const NATIVE_TYPES = new Set([
   'application/xml',
 ]);
 const ID = /^[A-Za-z0-9_-]{10,200}$/;
-const LIMITS = Object.freeze({ maxFiles: 25, maxDepth: 5, maxFileBytes: 10_000_000, maxTotalBytes: 25_000_000, maxFolders: 100, maxVisited: 1000, maxPages: 200 });
+const LIMITS = Object.freeze({ maxFileBytes: 10_000_000, maxTotalBytes: 25_000_000 });
 
 function fail(message) { throw new Error(`Expediente Drive no autorizado: ${message}`); }
 function validId(value) { return typeof value === 'string' && ID.test(value); }
@@ -30,13 +30,8 @@ function bounded(value, name) {
 function limits(input = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail('límites inválidos');
   return Object.freeze({
-    maxFiles: input.maxFiles === undefined ? LIMITS.maxFiles : bounded(input.maxFiles, 'maxFiles'),
-    maxDepth: input.maxDepth === undefined ? LIMITS.maxDepth : bounded(input.maxDepth, 'maxDepth'),
     maxFileBytes: input.maxFileBytes === undefined ? LIMITS.maxFileBytes : bounded(input.maxFileBytes, 'maxFileBytes'),
     maxTotalBytes: input.maxTotalBytes === undefined ? LIMITS.maxTotalBytes : bounded(input.maxTotalBytes, 'maxTotalBytes'),
-    maxFolders: input.maxFolders === undefined ? LIMITS.maxFolders : bounded(input.maxFolders, 'maxFolders'),
-    maxVisited: input.maxVisited === undefined ? LIMITS.maxVisited : bounded(input.maxVisited, 'maxVisited'),
-    maxPages: input.maxPages === undefined ? LIMITS.maxPages : bounded(input.maxPages, 'maxPages'),
   });
 }
 function fields() { return 'id,name,mimeType,size,modifiedTime,parents,trashed,shortcutDetails(targetId,targetMimeType)'; }
@@ -87,7 +82,7 @@ export function createDriveExpedientBroker({ fetchImpl = globalThis.fetch, getAc
   }
   async function assertDescendant(token, file, rootFolderId, maxDepth) {
     let frontier = [{ id: file.id, parents: file.parents }], seen = new Set();
-    for (let depth = 0; frontier.length && depth <= maxDepth; depth += 1) {
+    for (let depth = 0; frontier.length; depth += 1) {
       const next = [];
       for (const node of frontier) {
         if (node.id === rootFolderId) return true;
@@ -104,10 +99,11 @@ export function createDriveExpedientBroker({ fetchImpl = globalThis.fetch, getAc
     }
     fail('el archivo dejó de pertenecer a la carpeta autorizada');
   }
-  async function listChildren(token, folderId, cap, counters) {
-    const all = []; let pageToken;
+  async function listChildren(token, folderId) {
+    const all = [], seenPages = new Set(); let pageToken;
     do {
-      if(++counters.pages>cap.maxPages)fail('se excedió máximo de páginas Drive');
+      if (seenPages.has(pageToken)) fail('Drive repitió un cursor de página');
+      seenPages.add(pageToken);
       const response = await request(token, 'files', { q: `'${folderId}' in parents and trashed = false`, fields: `nextPageToken,files(${fields()})`, pageToken: pageToken || '', pageSize: '100', supportsAllDrives: 'true', includeItemsFromAllDrives: 'true' });
       const page = JSON.parse((await readBytes(response, 500_000)).toString('utf8'));
       all.push(...(Array.isArray(page.files) ? page.files : [])); pageToken = page.nextPageToken;
@@ -120,22 +116,19 @@ export function createDriveExpedientBroker({ fetchImpl = globalThis.fetch, getAc
     const cap = limits(requestedLimits), selectedIds = fileIds === undefined ? null : new Set(fileIds), token = await getAccessToken();
     const root = await metadata(token, rootFolderId);
     if (root.mimeType !== GOOGLE_FOLDER) fail('la raíz autorizada no es carpeta');
-    const queue = [{ id: rootFolderId, depth: 0 }], candidates = [], discovered = new Map(), known = new Set([rootFolderId]), counters={pages:0,visited:0,folders:0};
+    const queue = [{ id: rootFolderId, depth: 0 }], candidates = [], discovered = new Map(), known = new Set([rootFolderId]);
     while (queue.length) {
       const current = queue.shift();
-      if(++counters.folders>cap.maxFolders)fail('se excedió máximo de carpetas Drive');
-      for (const raw of await listChildren(token, current.id, cap, counters)) {
-        if(++counters.visited>cap.maxVisited)fail('se excedió máximo de entradas Drive');
+      for (const raw of await listChildren(token, current.id)) {
         if (!raw || !validId(raw.id)) fail('listado contiene recurso inválido');
         const selected = selectedIds === null || selectedIds.has(raw.id);
         if (raw.trashed || raw.mimeType === GOOGLE_SHORTCUT || raw.shortcutDetails) { if (selected) fail('archivo seleccionado está en papelera o es shortcut'); continue; }
-        if (raw.mimeType === GOOGLE_FOLDER) { if (current.depth >= cap.maxDepth) fail('se excedió profundidad autorizada'); if (!known.has(raw.id)) { known.add(raw.id); queue.push({ id: raw.id, depth: current.depth + 1 }); } continue; }
-        if (current.depth >= cap.maxDepth) fail('se excedió profundidad autorizada');
+        if (raw.mimeType === GOOGLE_FOLDER) { if (!known.has(raw.id)) { known.add(raw.id); queue.push({ id: raw.id, depth: current.depth + 1 }); } continue; }
         if (!selected) continue;
         discovered.set(raw.id, raw);
         if (!supported(raw)) fail('archivo seleccionado con tipo no permitido');
         if (!Number.isSafeInteger(Number(raw.size || 0)) || Number(raw.size || 0) < 0 || Number(raw.size || 0) > cap.maxFileBytes) fail('tamaño de archivo no permitido');
-        candidates.push(raw); if (candidates.length > cap.maxFiles) fail('se excedió máximo de archivos');
+        candidates.push(raw);
       }
     }
     const byId = new Map(candidates.map(file => [file.id, file]));

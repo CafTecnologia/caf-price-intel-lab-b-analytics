@@ -21,7 +21,7 @@ function atomic(root,name,value){
 }
 function inventory(root,allowUnknownQuantity=false){
  const rows=JSON.parse(read(root,'inventory.json',2000000));
- if(!Array.isArray(rows)||!rows.length||rows.length>500||rows.some(r=>typeof r.item!=='string'||!r.description||!(r.quantity>0||allowUnknownQuantity&&r.quantity===null)||!r.unit))throw Error('Inventario de recuperación incompleto.');
+ if(!Array.isArray(rows)||!rows.length||rows.some(r=>!r||typeof r.item!=='string'||!r.item.trim()||typeof r.description!=='string'||!r.description.trim()))throw Error('Inventario de recuperación incompleto.');
  return rows;
 }
 
@@ -85,6 +85,8 @@ export function restoreProgress(job,wd,checkpoint){
   if(!files.has(name))throw Error('Archivo no autorizado en recuperación.');
   const raw=read(checkpoint.source,name,files.get(name));if(hash(raw)!==digest)throw Error('Cambió el avance durante la recuperación.');
   if(path.resolve(wd)!==path.resolve(checkpoint.source))atomic(wd,name,raw);
+  // The skill resumes these files as the owner of its working directory.
+  const owner=fs.statSync(wd);fs.chownSync(path.join(wd,name),owner.uid,owner.gid);
  }
  atomic(wd,'recovery-receipt.json',{sourceJobId:checkpoint.sourceJobId,documentIdentity:checkpoint.documentIdentity,hashes:checkpoint.files});
  return inventory(wd,Boolean(checkpoint.files['resultado_finanzas.json']));

@@ -24,7 +24,7 @@ export function centralStage(job={}) {
  if(job.study)return 'study_agent';
  return 'general_agent';
 }
-export function centralCodex(job={},stage=centralStage(job),env=process.env) {
+export function centralCodex(job={},stage=centralStage(job),env=process.env,cwd) {
  const connection=centralConnection(job,env);
  if(!connection)return {args:[],env:{},enabled:false};
  if(!/^[a-zA-Z0-9_.:-]{1,100}$/.test(stage))throw Error('Invalid central task');
@@ -34,7 +34,7 @@ export function centralCodex(job={},stage=centralStage(job),env=process.env) {
   'model_providers.cafcentral.base_url':connection.base+'/'+stage,
   'model_providers.cafcentral.env_key':'CAF_AI_ROUTER_TOKEN',
   'model_providers.cafcentral.wire_api':'responses',
-  'model_providers.cafcentral.http_headers':{'X-Odoo-Database':connection.controlDatabase,'X-CAF-Origin-Database':connection.database},
+  'model_providers.cafcentral.http_headers':{'X-Odoo-Database':connection.controlDatabase,'X-CAF-Origin-Database':connection.database,...(cwd?{'X-CAF-Executor-Cwd':cwd}:{})},
   'model_providers.cafcentral.requires_openai_auth':false,
   'model_providers.cafcentral.supports_websockets':false,
   // An uncertain inference must be reconciled, never replay a business tool loop.

@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULTS = Object.freeze({ maxFileBytes: 10_000_000, maxTextChars: 350_000, maxTotalTextChars: 2_000_000, maxDocuments: 25 });
+const DEFAULTS = Object.freeze({ maxFileBytes: 10_000_000 });
 const SHA256 = /^[a-f0-9]{64}$/;
 const OFFICE = new Map([
   ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'docx'],
@@ -24,9 +24,6 @@ function resolvedOptions(storageDir, agentUid, options = {}) {
   return Object.freeze({
     storageDir: path.resolve(storageDir), agentUid,
     maxFileBytes: options.maxFileBytes === undefined ? DEFAULTS.maxFileBytes : limit(options.maxFileBytes, 'maxFileBytes'),
-    maxTextChars: options.maxTextChars === undefined ? DEFAULTS.maxTextChars : limit(options.maxTextChars, 'maxTextChars'),
-    maxTotalTextChars: options.maxTotalTextChars === undefined ? DEFAULTS.maxTotalTextChars : limit(options.maxTotalTextChars, 'maxTotalTextChars'),
-    maxDocuments: options.maxDocuments === undefined ? DEFAULTS.maxDocuments : limit(options.maxDocuments, 'maxDocuments'),
     pythonPath: options.pythonPath || 'python3',
     pdftotextPath: options.pdftotextPath || 'pdftotext',
     parserUid: options.parserUid ?? (process.getuid?.() === 0 ? 10004 : process.getuid?.()),
@@ -61,7 +58,7 @@ function safeOriginalPath(dir, index, name) {
 function textFromOffice(format, filePath, settings) {
   let output;
   try {
-    output = execFileSync(settings.pythonPath, [path.join(MODULE_DIR, 'study_document_extractor.py'), '--format', format, '--path', filePath, '--max-chars', String(settings.maxTextChars)], { uid: settings.parserUid, gid: settings.parserGid, cwd: path.dirname(filePath), env: { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8' }, encoding: 'utf8', maxBuffer: settings.maxTextChars * 8 + 4096, timeout: 20_000, stdio: ['ignore', 'pipe', 'pipe'] });
+    output = execFileSync(settings.pythonPath, [path.join(MODULE_DIR, 'study_document_extractor.py'), '--format', format, '--path', filePath, '--max-chars', String(settings.maxFileBytes * 8)], { uid: settings.parserUid, gid: settings.parserGid, cwd: path.dirname(filePath), env: { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8' }, encoding: 'utf8', maxBuffer: settings.maxFileBytes * 8 + 4096, timeout: 20_000, stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (error) { fail(`${format.toUpperCase()} no se pudo extraer: ${String(error.stderr || error.message).trim()}`); }
   try { return JSON.parse(output).text; } catch { fail(`${format.toUpperCase()} devolvió una respuesta inválida`); }
 }
@@ -72,7 +69,7 @@ function extractText(format, filePath, bytes, settings) {
     catch { fail('texto no está codificado en UTF-8'); }
   }
   if (format === 'pdf') {
-    try { return execFileSync(settings.pdftotextPath, ['-enc', 'UTF-8', '-layout', filePath, '-'], { uid: settings.parserUid, gid: settings.parserGid, cwd: path.dirname(filePath), env: { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8' }, encoding: 'utf8', maxBuffer: settings.maxTextChars * 8 + 4096, timeout: 20_000, stdio: ['ignore', 'pipe', 'pipe'] }); }
+    try { return execFileSync(settings.pdftotextPath, ['-enc', 'UTF-8', '-layout', filePath, '-'], { uid: settings.parserUid, gid: settings.parserGid, cwd: path.dirname(filePath), env: { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8' }, encoding: 'utf8', maxBuffer: settings.maxFileBytes * 8 + 4096, timeout: 20_000, stdio: ['ignore', 'pipe', 'pipe'] }); }
     catch (error) { fail(`PDF no se pudo extraer con pdftotext: ${String(error.stderr || error.message).trim()}`); }
   }
   return textFromOffice(format, filePath, settings);
@@ -80,14 +77,13 @@ function extractText(format, filePath, bytes, settings) {
 
 /** Persist broker originals and return bounded, extracted text for a study run. */
 export function extractStudyDocuments(files, storageDir, agentUid = 10001, options = {}) {
-  if (!Array.isArray(files) || files.length < 1 || files.length > DEFAULTS.maxDocuments) fail('lista de originales inválida');
+  if (!Array.isArray(files) || files.length < 1) fail('lista de originales inválida');
   const settings = resolvedOptions(storageDir, agentUid, options);
-  if (files.length > settings.maxDocuments) fail('se excedió máximo de documentos');
   const originalsDir = path.resolve(settings.storageDir, 'originals');
   if (path.dirname(originalsDir) !== settings.storageDir) fail('directorio de originales inseguro');
   fs.mkdirSync(originalsDir, { recursive: true, mode: 0o755 });
   fs.chmodSync(originalsDir, 0o755);
-  const documents = [], originals = [], seenIds = new Set(); let totalTextChars = 0;
+  const documents = [], originals = [], seenIds = new Set();
   files.forEach((file, index) => {
     if (!file || typeof file !== 'object' || typeof file.id !== 'string' || !file.id || typeof file.name !== 'string' || !file.name || seenIds.has(file.id)) fail('metadatos de original inválidos');
     seenIds.add(file.id);
@@ -114,9 +110,6 @@ export function extractStudyDocuments(files, storageDir, agentUid = 10001, optio
       fs.rmSync(parserDir, { recursive: true, force: true });
     }
     if (!text) fail(`texto esencial vacío en ${file.name}`);
-    if (text.length > settings.maxTextChars) fail(`texto extraído supera ${settings.maxTextChars} caracteres en ${file.name}`);
-    totalTextChars += text.length;
-    if (totalTextChars > settings.maxTotalTextChars) fail(`texto extraído supera ${settings.maxTotalTextChars} caracteres totales`);
     documents.push(Object.freeze({ id: file.id, name: file.name, text }));
     originals.push(Object.freeze({ id: file.id, name: file.name, file: destination, sha256: actualHash, mimeType: file.mimeType || file.exportedMimeType || null, format }));
   });

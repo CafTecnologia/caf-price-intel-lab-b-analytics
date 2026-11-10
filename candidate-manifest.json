@@ -1,0 +1,86 @@
+{
+  "state": "prepared_not_activated",
+  "source_commit": "ba884cd",
+  "files": [
+    {
+      "candidate": "ai/central-routing.mjs",
+      "source": "/opt/caf-dev/storage/ai-routing-central-r2-20261104/prod-worker-20261105/central-routing.mjs",
+      "before_sha256": "f73398ef957e128b3496d526bc98d4ebad908b9c112372fc47fcac84a9bbbe76",
+      "after_sha256": "eddb7ea2777a7cdfd633a935f42861be1ffa6f42673c95c268b6a2946632f097"
+    },
+    {
+      "candidate": "ai/drive-expedient-broker.mjs",
+      "source": "/opt/caf-dev/storage/finance-natural-chat-20261030/ai/drive-expedient-broker.mjs",
+      "before_sha256": "b45d7c6fb2394885bb50f40c3ef8f0b490c560f3dc574818478786afe3dbb627",
+      "after_sha256": "4d3a69fe625c9c9f6d0219b4ee0fd7b4e384a2a068cbc14fd492f648bf957221"
+    },
+    {
+      "candidate": "ai/server.mjs",
+      "source": "/opt/caf-dev/storage/ai-routing-central-r2-20261104/prod-worker-20261105/scope-source/server.mjs",
+      "before_sha256": "37b00e9f1e85d72ce3a8c51e2a0a5d2bcf515fb9961379b9a781082bc1a1178b",
+      "after_sha256": "dfd73e996c5923f870017330fa45f4407ef16fe8876751ff44c8c566f41a8628"
+    },
+    {
+      "candidate": "ai/study-document-extractor.mjs",
+      "source": "/opt/caf-dev/storage/finance-natural-chat-20261030/ai/study-document-extractor.mjs",
+      "before_sha256": "6ef7d152680387e6f9f40fb646e921fcc9320a5397fc84420e40bfb36bcdd410",
+      "after_sha256": "0251db9f58159630b01c8b68d36216dd139d706022c5b9dbdd633a33c782b3a3"
+    },
+    {
+      "candidate": "ai/study-progress.mjs",
+      "source": "/opt/caf-dev/storage/finance-natural-chat-20261030/ai/study-progress.mjs",
+      "before_sha256": "e676440ec5c52979f25e5be9fed3110caa8c2ae853913b6de22567bcf5c32fb9",
+      "after_sha256": "8839a3349b6010db037e50547adcaaa2341bcdcca18bb601fa044c563514546c"
+    },
+    {
+      "candidate": "ai/study-runs.mjs",
+      "source": "/opt/caf-dev/storage/ai-routing-central-r2-20261104/prod-worker-20261105/scope-source/study-runs.mjs",
+      "before_sha256": "9d1f3610ba3b48711ddabe756e1d6a5ac936073a439539ca57332ed3f159cb1e",
+      "after_sha256": "cb6d1013e62b9c476631d4be6021ecd864fbab85e353ea8a8ff17862463c9c1d"
+    },
+    {
+      "candidate": "health/contracts.json",
+      "source": "/opt/caf-dev/repos/odoo/scripts/caf_health/contracts.json",
+      "before_sha256": "0cca068286092115f8eff663c5957efb643e09bffa827223625d31818e67fba3",
+      "after_sha256": "5640f03fc0e68c72b3bc5ec8c22becb77dcbfac2a4559aeaa0cbc75ca1d4f718"
+    },
+    {
+      "candidate": "odoo/caf_market_study_dossier.py",
+      "source": "/opt/caf-dev/repos/odoo/addons/caf_external_apps/models/caf_market_study_dossier.py",
+      "before_sha256": "1fe8573f857035bbfe00f4b1234250e5b93fb803ebd729a14f4d10ba2dd8cdc0",
+      "after_sha256": "705f2ed8d356e6455b64c55bced1c3d2d32c1dc442858e2589de370d314ba403"
+    },
+    {
+      "candidate": "odoo/drive_reader.py",
+      "source": "/opt/caf-dev/repos/odoo/addons/caf_project_drive_bridge/models/drive_reader.py",
+      "before_sha256": "1aa71324f1a1649c5f9759533a62de3adfc3e9da13b79bb2da5a994dfe54b14f",
+      "after_sha256": "319ec2abb2bdbfb9fe4a0c528106a616f32dc509e067ac7089c32b19ea494118"
+    },
+    {
+      "candidate": "routing/controller.py",
+      "source": "/opt/caf-dev/repos/odoo/addons/_ai-routing-production-20261105/addons/caf_ai_routing/controllers/routing.py",
+      "before_sha256": "cb242127ca6cf735280cdf0e8b1333e52a6ef177edfd611a20c797c5d62f6a5d",
+      "after_sha256": "d555f12c0f3993c05e050147d549d951b90b3b5c5a0371f1c57d0fbddcbc7360"
+    },
+    {
+      "candidate": "routing/execution.py",
+      "source": "/opt/caf-dev/repos/odoo/addons/_ai-routing-production-20261105/addons/caf_ai_routing/models/execution.py",
+      "before_sha256": "365ecdbee487a57b686a1bb07846f7e9a44b4c66466f2fdf300d7006100ce3e3",
+      "after_sha256": "621c20d884aeb057b54d10aac68e845676a303f46bc6a972fa38464d569dfae0"
+    }
+  ],
+  "removed": [
+    "ai/tests/inventory-first.test.mjs"
+  ],
+  "validation": {
+    "node_tests": 9,
+    "python_tests": 4,
+    "live_inference": false,
+    "production_gate": false,
+    "dev_tests_passed": true,
+    "dev_candidate": "/opt/caf-dev/worktrees/financial-simple-cloud-20261110",
+    "dev_receipt": "dev-verification.json",
+    "before_regressions": "baseline-regressions.json"
+  },
+  "no_job_restarts": true
+}

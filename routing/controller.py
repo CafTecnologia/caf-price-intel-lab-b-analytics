@@ -33,7 +33,9 @@ class RoutingController(http.Controller):
             stream=bool(body.get('stream'))
             converted=chat_request(body) if is_chat else body
             seconds=converted.pop('caf_timeout_seconds',None)
-            result=request.env['caf.ai.routing.policy'].execute_response(converted,stage=stage,timeout=seconds)
+            policy=request.env['caf.ai.routing.policy'].with_context(
+                caf_executor_cwd=request.httprequest.headers.get('X-CAF-Executor-Cwd'))
+            result=policy.execute_response(converted,stage=stage,timeout=seconds)
             if is_chat:result=chat_response(result)
             headers={'Cache-Control':'no-store','X-Accel-Buffering':'no'}
             if stream:
