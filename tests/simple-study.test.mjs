@@ -81,3 +81,17 @@ test('Drive broker paginates more than 25 files and retains root authorization',
  const out=await broker.readExpedient({rootFolderId:rootId});assert.equal(out.length,27);assert(out.every(f=>f.bytes.toString()==='data'));
  await assert.rejects(broker.list({rootFolderId:rootId,fileIds:['foreign0000001']}),/fuera del expediente/);
 });
+
+
+test('a complete saved delivery resumes without an intermediate inventory',async()=>{
+ const wd=fs.mkdtempSync(path.join(os.tmpdir(),'caf-final-only-'));const id='33333333-3333-4333-8333-333333333333';
+ try{const prior=path.join(wd,id);fs.mkdirSync(prior);fs.writeFileSync(path.join(prior,'resultado_finanzas.json'),JSON.stringify(fixture));fs.writeFileSync(path.join(prior,'soporte.md'),'Existing source support');const current={id:'44444444-4444-4444-8444-444444444444',owner:'study_worker',study:base};const old={...current,id,status:'failed',created_at:'2026-11-10T08:00:00Z'};const checkpoint=findProgress(current,[old],wd);assert(checkpoint);const target=path.join(wd,current.id);fs.mkdirSync(target);assert.deepEqual(restoreProgress(current,target,checkpoint),fixture.items);assert.equal((await validate(current,target)).validation.ok,true);assert.equal(fs.readFileSync(path.join(target,'soporte.md'),'utf8'),'Existing source support');}
+ finally{fs.rmSync(wd,{recursive:true,force:true});}
+});
+
+test('timeout accepts an already saved valid Finance delivery without inventory',async()=>{
+ const recover=fn(server,'async function recoverTimedOutStudy(','\n\nimport','recoverTimedOutStudy',{fs,path,validateStudyOutput:validate});
+ const wd=fs.mkdtempSync(path.join(os.tmpdir(),'caf-timeout-final-'));
+ try{const job={study:base};assert.equal(await recover(job,wd,{code:124}),null);fs.writeFileSync(path.join(wd,'resultado_finanzas.json'),JSON.stringify(fixture));assert.equal(typeof await recover(job,wd,{code:124}),'string');assert.equal(await recover(job,wd,{code:0}),null);fs.writeFileSync(path.join(wd,'resultado_finanzas.json'),'broken');assert.equal(await recover(job,wd,{code:124}),null);}
+ finally{fs.rmSync(wd,{recursive:true,force:true});}
+});

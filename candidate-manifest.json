@@ -18,7 +18,7 @@
       "candidate": "ai/server.mjs",
       "source": "/opt/caf-dev/storage/ai-routing-central-r2-20261104/prod-worker-20261105/scope-source/server.mjs",
       "before_sha256": "37b00e9f1e85d72ce3a8c51e2a0a5d2bcf515fb9961379b9a781082bc1a1178b",
-      "after_sha256": "ad2e00d15aaf292173b1d26ada9f4fde21dd8959f6622e90bb9d08577684cad7"
+      "after_sha256": "5259d5fd89eeaf0df9a1d1c2fe6ec8d764614f76fcf7ce4765582773d46764a8"
     },
     {
       "candidate": "ai/study-document-extractor.mjs",
@@ -30,7 +30,7 @@
       "candidate": "ai/study-progress.mjs",
       "source": "/opt/caf-dev/storage/finance-natural-chat-20261030/ai/study-progress.mjs",
       "before_sha256": "e676440ec5c52979f25e5be9fed3110caa8c2ae853913b6de22567bcf5c32fb9",
-      "after_sha256": "4d19c7ee585e8a37cdff93f55311460dd223634405f885d4d49fe99a77d2cfc8"
+      "after_sha256": "9e61d4afe512ea84cd762c06e35ee0ebb01afad25e2713899071b695b0f3b48d"
     },
     {
       "candidate": "ai/study-runs.mjs",
@@ -73,7 +73,7 @@
     "ai/tests/inventory-first.test.mjs"
   ],
   "validation": {
-    "node_tests": 9,
+    "node_tests": 11,
     "python_tests": 4,
     "live_inference": false,
     "production_gate": false,
@@ -85,7 +85,8 @@
       "captura_documental.json",
       "investigacion_checkpoint.json",
       "research-checkpoint.json"
-    ]
+    ],
+    "final_only_recovery": true
   },
   "no_job_restarts": true
 }

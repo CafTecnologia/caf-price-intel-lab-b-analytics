@@ -25,6 +25,13 @@ function inventory(root,allowUnknownQuantity=false){
  return rows;
 }
 
+function progressRows(root){
+ if(fs.existsSync(path.join(root,'resultado_finanzas.json'))){
+  try{const value=JSON.parse(read(root,'resultado_finanzas.json',3000000));if(Array.isArray(value?.items)&&value.items.length)return value.items;}catch{/* Delivery validation decides whether a saved final result is usable. */}
+ }
+ return inventory(root);
+}
+
 // Publication transfer: only the controller's non-writable, sealed directory.
 // This does not turn a DEV run into a production job or change its provenance.
 export function findPublishedProgress(job,workRoot){
@@ -68,7 +75,7 @@ export function findProgress(job,jobs,workRoot){
   const source=path.join(workRoot,prior.id+(attempt?'-attempt-'+attempt:''));
   if(!fs.existsSync(source)||fs.lstatSync(source).isSymbolicLink())continue;
   try{
-   const rows=inventory(source,fs.existsSync(path.join(source,'resultado_finanzas.json'))),sealed={};
+   const rows=progressRows(source),sealed={};
    for(const [name,max] of files)if(fs.existsSync(path.join(source,name)))sealed[name]=hash(read(source,name,max));
    const stat=fs.lstatSync(source);
    return {sourceJobId:prior.id,source,sourceDev:stat.dev,sourceIno:stat.ino,documentIdentity:identity,files:sealed,rows:rows.length};
@@ -78,7 +85,7 @@ export function findProgress(job,jobs,workRoot){
 }
 export function restoreProgress(job,wd,checkpoint){
  if(documentIdentity(job.study)!==checkpoint.documentIdentity)throw Error('El expediente cambió; no se recuperan avances anteriores.');
- if(!uuid.test(checkpoint.sourceJobId)||!checkpoint.files?.['inventory.json'])throw Error('Identidad de recuperación inválida.');
+ if(!uuid.test(checkpoint.sourceJobId)||(!checkpoint.files?.['inventory.json']&&!checkpoint.files?.['resultado_finanzas.json']))throw Error('Identidad de recuperación inválida.');
  const stat=fs.lstatSync(checkpoint.source);
  if(stat.isSymbolicLink()||stat.dev!==checkpoint.sourceDev||stat.ino!==checkpoint.sourceIno)throw Error('Cambió el directorio del avance durante la recuperación.');
  for(const [name,digest] of Object.entries(checkpoint.files)){
@@ -89,7 +96,7 @@ export function restoreProgress(job,wd,checkpoint){
   const owner=fs.statSync(wd);fs.chownSync(path.join(wd,name),owner.uid,owner.gid);
  }
  atomic(wd,'recovery-receipt.json',{sourceJobId:checkpoint.sourceJobId,documentIdentity:checkpoint.documentIdentity,hashes:checkpoint.files});
- return inventory(wd,Boolean(checkpoint.files['resultado_finanzas.json']));
+ return progressRows(wd);
 }
 function parse(text){
  try{return JSON.parse(text);}catch{throw Object.assign(Error('La fase no entregó JSON válido; se conserva el último avance confirmado.'),{code:'STUDY_PHASE_FORMAT'});}

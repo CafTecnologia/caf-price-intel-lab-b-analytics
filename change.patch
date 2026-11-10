@@ -99,7 +99,7 @@ index b2a77d5..486e7eb 100644
      }
      const byId = new Map(candidates.map(file => [file.id, file]));
 diff --git a/ai/server.mjs b/ai/server.mjs
-index 6025311..1ba7227 100644
+index 6025311..5f3ed3b 100644
 --- a/ai/server.mjs
 +++ b/ai/server.mjs
 @@ -1,29 +1,12 @@
@@ -134,6 +134,15 @@ index 6025311..1ba7227 100644
   if(!job.study||job.study.financialScope||job.study.pilot||job.review_of||job.study._catalogAccess)return null;
 - if(!fs.existsSync(path.join(wd,'inventory.json'))||!fs.existsSync(path.join(wd,'recovery-receipt.json')))return null;
 + if(!fs.existsSync(path.join(wd,'resultado_finanzas.json'))||!fs.existsSync(path.join(wd,'recovery-receipt.json')))return null;
+  try{
+   const output=await validate(job,wd);
+   if(output.validation?.ok!==true||!output.json?.items?.length)return null;
+@@ -34,7 +17,7 @@ async function recoverSavedStudy(job,wd,{validate=validateStudyOutput,emit=()=>{
+ 
+ async function recoverTimedOutStudy(job,wd,result,{validate=validateStudyOutput,emit=()=>{}}={}){
+  if(result.code!==124||!job.study||job.study.financialScope)return null;
+- if(!fs.existsSync(path.join(wd,'inventory.json')))return null;
++ if(!fs.existsSync(path.join(wd,'resultado_finanzas.json')))return null;
   try{
    const output=await validate(job,wd);
    if(output.validation?.ok!==true||!output.json?.items?.length)return null;
@@ -259,7 +268,7 @@ index 5e8d0d7..a7a0da7 100644
      originals.push(Object.freeze({ id: file.id, name: file.name, file: destination, sha256: actualHash, mimeType: file.mimeType || file.exportedMimeType || null, format }));
    });
 diff --git a/ai/study-progress.mjs b/ai/study-progress.mjs
-index c6d9ca1..06e3927 100644
+index c6d9ca1..afea5f5 100644
 --- a/ai/study-progress.mjs
 +++ b/ai/study-progress.mjs
 @@ -4,7 +4,7 @@ import crypto from 'node:crypto';
@@ -271,7 +280,7 @@ index c6d9ca1..06e3927 100644
  export function documentIdentity(study){
   if(!Array.isArray(study?.documents)||!study.documents.length)throw Error('No hay documentos congelados para recuperar.');
   return hash(study.documents.map(d=>({id:d.id,name:d.name,sha256:hash(d.text)})));
-@@ -21,7 +21,7 @@ function atomic(root,name,value){
+@@ -21,10 +21,17 @@ function atomic(root,name,value){
  }
  function inventory(root,allowUnknownQuantity=false){
   const rows=JSON.parse(read(root,'inventory.json',2000000));
@@ -280,7 +289,34 @@ index c6d9ca1..06e3927 100644
   return rows;
  }
  
-@@ -85,6 +85,8 @@ export function restoreProgress(job,wd,checkpoint){
++function progressRows(root){
++ if(fs.existsSync(path.join(root,'resultado_finanzas.json'))){
++  try{const value=JSON.parse(read(root,'resultado_finanzas.json',3000000));if(Array.isArray(value?.items)&&value.items.length)return value.items;}catch{/* Delivery validation decides whether a saved final result is usable. */}
++ }
++ return inventory(root);
++}
++
+ // Publication transfer: only the controller's non-writable, sealed directory.
+ // This does not turn a DEV run into a production job or change its provenance.
+ export function findPublishedProgress(job,workRoot){
+@@ -68,7 +75,7 @@ export function findProgress(job,jobs,workRoot){
+   const source=path.join(workRoot,prior.id+(attempt?'-attempt-'+attempt:''));
+   if(!fs.existsSync(source)||fs.lstatSync(source).isSymbolicLink())continue;
+   try{
+-   const rows=inventory(source,fs.existsSync(path.join(source,'resultado_finanzas.json'))),sealed={};
++   const rows=progressRows(source),sealed={};
+    for(const [name,max] of files)if(fs.existsSync(path.join(source,name)))sealed[name]=hash(read(source,name,max));
+    const stat=fs.lstatSync(source);
+    return {sourceJobId:prior.id,source,sourceDev:stat.dev,sourceIno:stat.ino,documentIdentity:identity,files:sealed,rows:rows.length};
+@@ -78,16 +85,18 @@ export function findProgress(job,jobs,workRoot){
+ }
+ export function restoreProgress(job,wd,checkpoint){
+  if(documentIdentity(job.study)!==checkpoint.documentIdentity)throw Error('El expediente cambió; no se recuperan avances anteriores.');
+- if(!uuid.test(checkpoint.sourceJobId)||!checkpoint.files?.['inventory.json'])throw Error('Identidad de recuperación inválida.');
++ if(!uuid.test(checkpoint.sourceJobId)||(!checkpoint.files?.['inventory.json']&&!checkpoint.files?.['resultado_finanzas.json']))throw Error('Identidad de recuperación inválida.');
+  const stat=fs.lstatSync(checkpoint.source);
+  if(stat.isSymbolicLink()||stat.dev!==checkpoint.sourceDev||stat.ino!==checkpoint.sourceIno)throw Error('Cambió el directorio del avance durante la recuperación.');
+  for(const [name,digest] of Object.entries(checkpoint.files)){
    if(!files.has(name))throw Error('Archivo no autorizado en recuperación.');
    const raw=read(checkpoint.source,name,files.get(name));if(hash(raw)!==digest)throw Error('Cambió el avance durante la recuperación.');
    if(path.resolve(wd)!==path.resolve(checkpoint.source))atomic(wd,name,raw);
@@ -288,7 +324,11 @@ index c6d9ca1..06e3927 100644
 +  const owner=fs.statSync(wd);fs.chownSync(path.join(wd,name),owner.uid,owner.gid);
   }
   atomic(wd,'recovery-receipt.json',{sourceJobId:checkpoint.sourceJobId,documentIdentity:checkpoint.documentIdentity,hashes:checkpoint.files});
-  return inventory(wd,Boolean(checkpoint.files['resultado_finanzas.json']));
+- return inventory(wd,Boolean(checkpoint.files['resultado_finanzas.json']));
++ return progressRows(wd);
+ }
+ function parse(text){
+  try{return JSON.parse(text);}catch{throw Object.assign(Error('La fase no entregó JSON válido; se conserva el último avance confirmado.'),{code:'STUDY_PHASE_FORMAT'});}
 diff --git a/ai/study-runs.mjs b/ai/study-runs.mjs
 index 14468e4..7f90020 100644
 --- a/ai/study-runs.mjs
@@ -709,10 +749,10 @@ index 4015c56..542e81a 100644
          if search:
 diff --git a/tests/simple-study.test.mjs b/tests/simple-study.test.mjs
 new file mode 100644
-index 0000000..de78d6e
+index 0000000..bd1d3cc
 --- /dev/null
 +++ b/tests/simple-study.test.mjs
-@@ -0,0 +1,83 @@
+@@ -0,0 +1,97 @@
 +import test from 'node:test';
 +import assert from 'node:assert/strict';
 +import fs from 'node:fs';
@@ -795,6 +835,20 @@ index 0000000..de78d6e
 + const broker=createDriveExpedientBroker({getAccessToken:async()=>'synthetic',fetchImpl:async(url)=>{const u=new URL(url);const id=u.pathname.split('/').at(-1);if(u.searchParams.get('alt')==='media')return new Response('data');if(id==='files'){return Response.json(u.searchParams.get('pageToken')?{files:entries.slice(25)}:{files:entries.slice(0,25),nextPageToken:'p2'});}return Response.json(id===rootId?{id:rootId,name:'Root',mimeType:'application/vnd.google-apps.folder'}:entries.find(e=>e.id===id));}});
 + const out=await broker.readExpedient({rootFolderId:rootId});assert.equal(out.length,27);assert(out.every(f=>f.bytes.toString()==='data'));
 + await assert.rejects(broker.list({rootFolderId:rootId,fileIds:['foreign0000001']}),/fuera del expediente/);
++});
++
++
++test('a complete saved delivery resumes without an intermediate inventory',async()=>{
++ const wd=fs.mkdtempSync(path.join(os.tmpdir(),'caf-final-only-'));const id='33333333-3333-4333-8333-333333333333';
++ try{const prior=path.join(wd,id);fs.mkdirSync(prior);fs.writeFileSync(path.join(prior,'resultado_finanzas.json'),JSON.stringify(fixture));fs.writeFileSync(path.join(prior,'soporte.md'),'Existing source support');const current={id:'44444444-4444-4444-8444-444444444444',owner:'study_worker',study:base};const old={...current,id,status:'failed',created_at:'2026-11-10T08:00:00Z'};const checkpoint=findProgress(current,[old],wd);assert(checkpoint);const target=path.join(wd,current.id);fs.mkdirSync(target);assert.deepEqual(restoreProgress(current,target,checkpoint),fixture.items);assert.equal((await validate(current,target)).validation.ok,true);assert.equal(fs.readFileSync(path.join(target,'soporte.md'),'utf8'),'Existing source support');}
++ finally{fs.rmSync(wd,{recursive:true,force:true});}
++});
++
++test('timeout accepts an already saved valid Finance delivery without inventory',async()=>{
++ const recover=fn(server,'async function recoverTimedOutStudy(','\n\nimport','recoverTimedOutStudy',{fs,path,validateStudyOutput:validate});
++ const wd=fs.mkdtempSync(path.join(os.tmpdir(),'caf-timeout-final-'));
++ try{const job={study:base};assert.equal(await recover(job,wd,{code:124}),null);fs.writeFileSync(path.join(wd,'resultado_finanzas.json'),JSON.stringify(fixture));assert.equal(typeof await recover(job,wd,{code:124}),'string');assert.equal(await recover(job,wd,{code:0}),null);fs.writeFileSync(path.join(wd,'resultado_finanzas.json'),'broken');assert.equal(await recover(job,wd,{code:124}),null);}
++ finally{fs.rmSync(wd,{recursive:true,force:true});}
 +});
 diff --git a/tests/test_simple_contract.py b/tests/test_simple_contract.py
 new file mode 100644

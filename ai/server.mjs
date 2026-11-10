@@ -17,7 +17,7 @@ async function recoverSavedStudy(job,wd,{validate=validateStudyOutput,emit=()=>{
 
 async function recoverTimedOutStudy(job,wd,result,{validate=validateStudyOutput,emit=()=>{}}={}){
  if(result.code!==124||!job.study||job.study.financialScope)return null;
- if(!fs.existsSync(path.join(wd,'inventory.json')))return null;
+ if(!fs.existsSync(path.join(wd,'resultado_finanzas.json')))return null;
  try{
   const output=await validate(job,wd);
   if(output.validation?.ok!==true||!output.json?.items?.length)return null;
