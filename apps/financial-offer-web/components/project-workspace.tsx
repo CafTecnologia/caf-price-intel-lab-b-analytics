@@ -1,6 +1,7 @@
 "use client";
 import { buildOfferScreen } from "../lib/offer-presentation";
 import { startVisiblePoll } from "../lib/visible-poll";
+import { openSearchWindow } from "../lib/search-window";
 
 import { Fragment, cloneElement, isValidElement, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 
@@ -2767,10 +2768,11 @@ export function ProjectWorkspace(props: { project: FinancialOfferProject }) {
     if (!item) return;
     const fallbackQuery = [item.description, item.technicalDescription].filter(Boolean).join(" ").split(/\s+/).slice(0, 22).join(" ").trim();
     const fallbackUrl = `https://www.google.com/search?q=${encodeURIComponent(`${fallbackQuery || "producto"} proveedor precio`)}`;
-    setSearchFeedback("Preparando consulta de búsqueda…");
-    try {
+    await openSearchWindow(item.id, fallbackUrl, async () => {
+      setSearchFeedback("Preparando consulta de búsqueda…");
       const response = await fetch(appPath("/api/search-query"), {
         method: "POST",
+        signal: AbortSignal.timeout(10000),
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           item: item.item,
@@ -2790,14 +2792,14 @@ export function ProjectWorkspace(props: { project: FinancialOfferProject }) {
       const data = (await response.json()) as { url?: string; query?: string; source?: "deepseek" | "local" };
       if (response.ok && data.url && data.query) {
         setSearchFeedback(`${data.source === "deepseek" ? "Consulta preparada por IA" : "Consulta básica; la IA no respondió"}: ${data.query}`);
-        window.open(data.url, "_blank", "noopener,noreferrer");
-        return;
+        return data.url;
       }
-    } catch {
-      // Keep a usable search when the server is unavailable.
-    }
-    setSearchFeedback("Consulta básica; no se pudo conectar con la IA.");
-    window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+      setSearchFeedback("Consulta básica; no se pudo conectar con la IA.");
+      return fallbackUrl;
+    }, {
+      onBlocked: () => setSearchFeedback("El navegador bloqueó la pestaña. Permite ventanas emergentes para este sitio y vuelve a buscar."),
+      onFallback: () => setSearchFeedback("Consulta básica; no se pudo conectar con la IA."),
+    });
   }
 
   function openItemEditor(index: number, section: "additional" | "cost" | null = null) {
@@ -4687,7 +4689,7 @@ export function ProjectWorkspace(props: { project: FinancialOfferProject }) {
               </div>
             ) : null}
             {appendMessage ? <div className={`status-line append-status ${appendStatus === "error" ? "error" : appendStatus === "success" ? "success" : ""}`}>{appendMessage}</div> : null}
-            {searchFeedback ? <div className="status-line append-status" role="status">{searchFeedback}</div> : null}
+            {searchFeedback ? <div className="status-line append-status" role="status" style={{ position: "fixed", bottom: 16, right: 16, zIndex: 100, maxWidth: "min(480px, calc(100vw - 32px))", pointerEvents: "none" }}>{searchFeedback}</div> : null}
                 </div>
                     <div className={`decision-filters ${mobileLayout ? "is-mobile-collapsible" : ""} ${mobileLayout && mobileSheet === "filters" ? "is-mobile-sheet-open" : ""}`} ref={tableChipsRef} role="group" aria-label="Filtrar ítems" onClick={event => { if (mobileSheet === "filters" && (event.target as HTMLElement).closest(".decision-filter")) setMobileSheet(null); }}>
                 {mobileLayout ? <div className="mobile-sheet-head"><strong>Filtrar ítems</strong><button type="button" onClick={() => setMobileSheet(null)} aria-label="Cerrar filtros">×</button></div> : null}
