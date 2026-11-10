@@ -1,0 +1,470 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CAF Finanzas — perfil version 3",
+  "description": "Organizacion del perfil 2.0; validar ademas evidencia en receptor DEV.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "items"
+  ],
+  "properties": {
+    "version": {
+      "const": 3
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "item",
+          "name",
+          "description",
+          "unit",
+          "quantity",
+          "ceiling_unit_price",
+          "notes",
+          "price_sources",
+          "data_organization",
+          "deliverable_type"
+        ],
+        "properties": {
+          "item": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "source_original": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "technical_description": {
+                "type": "string"
+              },
+              "quantity": {
+                "type": "string"
+              },
+              "unit": {
+                "type": "string"
+              },
+              "ceiling_unit_price": {
+                "type": "string"
+              },
+              "document": {
+                "type": "string"
+              },
+              "locator": {
+                "type": "string"
+              }
+            }
+          },
+          "technical_annex": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "document",
+                "locator",
+                "text"
+              ],
+              "properties": {
+                "document": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "locator": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "unit": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "exclusiveMinimum": 0
+          },
+          "ceiling_unit_price": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "notes": {
+            "type": "string"
+          },
+          "cost_basis_status": {
+            "enum": [
+              "conforming",
+              "comparable_scenario",
+              "partial",
+              "pending"
+            ]
+          },
+          "price_sources": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "unit_price",
+                "currency"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "unit_price": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "currency": {
+                  "enum": [
+                    "COP",
+                    "USD"
+                  ]
+                },
+                "url": {
+                  "type": "string"
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "trm": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "exclusiveMinimum": 0
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "deliverable_type": {
+            "enum": [
+              "product",
+              "service"
+            ],
+            "description": "Objeto principal; requerido para nuevos estudios de esta copia."
+          },
+          "additional_costs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "category": {
+                  "enum": [
+                    "service",
+                    "logistics",
+                    "other"
+                  ]
+                },
+                "mode": {
+                  "enum": [
+                    "fixed",
+                    "per_unit"
+                  ]
+                },
+                "amount": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "review_status": {
+                  "enum": [
+                    "suggested",
+                    "included",
+                    "excluded"
+                  ]
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "name",
+                "category",
+                "mode",
+                "amount",
+                "review_status",
+                "notes"
+              ]
+            }
+          },
+          "procurement_lot": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label",
+              "document",
+              "locator"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 240
+              },
+              "document": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "locator": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            }
+          },
+          "data_organization": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "version": {
+                "const": 1
+              },
+              "original_capture": {
+                "enum": [
+                  "literal",
+                  "legacy_fields_only"
+                ]
+              },
+              "original_row": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "document": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "locator": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "columns": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "header": {
+                          "type": "string"
+                        },
+                        "header_path": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 0
+                        },
+                        "value": {
+                          "type": [
+                            "string",
+                            "number",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "header",
+                        "value"
+                      ]
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "document",
+                  "locator",
+                  "columns"
+                ]
+              },
+              "normalization": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "enum": [
+                        "item",
+                        "name",
+                        "description",
+                        "quantity",
+                        "unit",
+                        "ceiling_unit_price"
+                      ]
+                    },
+                    "column_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "minItems": 1
+                    },
+                    "operation": {
+                      "enum": [
+                        "copied",
+                        "split",
+                        "combined",
+                        "interpreted"
+                      ]
+                    },
+                    "note": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "column_ids",
+                    "operation",
+                    "note"
+                  ]
+                },
+                "minItems": 0
+              },
+              "components": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "type": {
+                      "enum": [
+                        "product",
+                        "service"
+                      ]
+                    },
+                    "quantity_per_deliverable": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "relationship": {
+                      "enum": [
+                        "included",
+                        "separate",
+                        "pending"
+                      ]
+                    },
+                    "factory_bundle": {
+                      "type": "boolean"
+                    },
+                    "included_parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "minItems": 0
+                    },
+                    "reason": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "additional_cost_id": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "type",
+                    "quantity_per_deliverable",
+                    "relationship",
+                    "reason"
+                  ]
+                },
+                "minItems": 0
+              }
+            },
+            "required": [
+              "version",
+              "original_capture",
+              "normalization",
+              "components"
+            ]
+          }
+        }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "manual_reference_total": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    }
+  }
+}
