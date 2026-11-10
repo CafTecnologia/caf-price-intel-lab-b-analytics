@@ -29,7 +29,64 @@ function progressRows(root){
  if(fs.existsSync(path.join(root,'resultado_finanzas.json'))){
   try{const value=JSON.parse(read(root,'resultado_finanzas.json',3000000));if(Array.isArray(value?.items)&&value.items.length)return value.items;}catch{/* Delivery validation decides whether a saved final result is usable. */}
  }
- return inventory(root);
+ try{return inventory(root);}catch{return [];}
+}
+
+// Research filenames belong to the skill. Restore its saved data, not a fixed
+// inventory/checkpoint vocabulary. Fresh inputs, tooling and capabilities are
+// prepared for the new job and are never borrowed from an earlier job.
+const generatedDirectories=new Set(['documents','originals','skills','tools','node_modules']);
+const generatedFiles=new Set(['manifest.json','last.txt','job.json','job-state.json','recovery-receipt.json','inventory-first-receipt.json']);
+function artifactName(name){
+ if(typeof name!=='string'||!name||path.isAbsolute(name))return false;
+ const parts=name.split(path.sep);
+ return parts.every(part=>part&&part!=='.'&&part!=='..'&&!part.startsWith('.'))
+  &&!generatedDirectories.has(parts[0])&&!generatedFiles.has(parts[0])&&!/-access\.json$/.test(parts[0]);
+}
+function artifactPath(root,name){
+ if(!artifactName(name))throw Error('Ruta de avance inválida.');
+ let current=root;
+ for(const part of name.split(path.sep)){
+  current=path.join(current,part);if(fs.lstatSync(current).isSymbolicLink())throw Error('Enlace no permitido en avances.');
+ }
+ return current;
+}
+function fileDigest(file){
+ const fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+ try{
+  if(!fs.fstatSync(fd).isFile())throw Error('El avance no es un archivo regular.');
+  const digest=crypto.createHash('sha256'),block=Buffer.alloc(65536);let size;
+  while((size=fs.readSync(fd,block,0,block.length,null))>0)digest.update(block.subarray(0,size));
+  return digest.digest('hex');
+ }finally{fs.closeSync(fd);}
+}
+function savedArtifacts(root){
+ const result={},pending=[''];
+ while(pending.length){
+  const relative=pending.pop();
+  for(const entry of fs.readdirSync(path.join(root,relative),{withFileTypes:true})){
+   const name=path.join(relative,entry.name);if(!artifactName(name)||entry.isSymbolicLink())continue;
+   if(entry.isDirectory())pending.push(name);
+   else if(entry.isFile())result[name]=fileDigest(artifactPath(root,name));
+  }
+ }
+ return result;
+}
+function restoreArtifact(source,target,name,digest){
+ const from=artifactPath(source,name);if(fileDigest(from)!==digest)throw Error('Cambió un avance durante la recuperación.');
+ if(path.resolve(source)===path.resolve(target))return;
+ const owner=fs.statSync(target);let parent=target;
+ for(const part of name.split(path.sep).slice(0,-1)){
+  parent=path.join(parent,part);
+  if(!fs.existsSync(parent)){fs.mkdirSync(parent,{mode:0o700});fs.chownSync(parent,owner.uid,owner.gid);}
+  if(fs.lstatSync(parent).isSymbolicLink()||!fs.statSync(parent).isDirectory())throw Error('Destino de avances inválido.');
+ }
+ const final=path.join(target,name),temporary=final+'.restore-'+crypto.randomUUID();
+ try{
+  fs.copyFileSync(from,temporary,fs.constants.COPYFILE_EXCL|fs.constants.COPYFILE_FICLONE);
+  if(fileDigest(temporary)!==digest)throw Error('La copia del avance no coincide.');
+  fs.chownSync(temporary,owner.uid,owner.gid);fs.chmodSync(temporary,0o600|(fs.statSync(from).mode&0o100));fs.renameSync(temporary,final);
+ }finally{if(fs.existsSync(temporary))fs.unlinkSync(temporary);}
 }
 
 // Publication transfer: only the controller's non-writable, sealed directory.
@@ -75,8 +132,8 @@ export function findProgress(job,jobs,workRoot){
   const source=path.join(workRoot,prior.id+(attempt?'-attempt-'+attempt:''));
   if(!fs.existsSync(source)||fs.lstatSync(source).isSymbolicLink())continue;
   try{
-   const rows=progressRows(source),sealed={};
-   for(const [name,max] of files)if(fs.existsSync(path.join(source,name)))sealed[name]=hash(read(source,name,max));
+   const rows=progressRows(source),sealed=savedArtifacts(source);
+   if(!Object.keys(sealed).length)continue;
    const stat=fs.lstatSync(source);
    return {sourceJobId:prior.id,source,sourceDev:stat.dev,sourceIno:stat.ino,documentIdentity:identity,files:sealed,rows:rows.length};
   }catch{/* An invalid older checkpoint is not silently adopted. */}
@@ -85,17 +142,12 @@ export function findProgress(job,jobs,workRoot){
 }
 export function restoreProgress(job,wd,checkpoint){
  if(documentIdentity(job.study)!==checkpoint.documentIdentity)throw Error('El expediente cambió; no se recuperan avances anteriores.');
- if(!uuid.test(checkpoint.sourceJobId)||(!checkpoint.files?.['inventory.json']&&!checkpoint.files?.['resultado_finanzas.json']))throw Error('Identidad de recuperación inválida.');
+ if(!uuid.test(checkpoint.sourceJobId)||(!checkpoint.files||!Object.keys(checkpoint.files).length))throw Error('Identidad de recuperación inválida.');
  const stat=fs.lstatSync(checkpoint.source);
  if(stat.isSymbolicLink()||stat.dev!==checkpoint.sourceDev||stat.ino!==checkpoint.sourceIno)throw Error('Cambió el directorio del avance durante la recuperación.');
- for(const [name,digest] of Object.entries(checkpoint.files)){
-  if(!files.has(name))throw Error('Archivo no autorizado en recuperación.');
-  const raw=read(checkpoint.source,name,files.get(name));if(hash(raw)!==digest)throw Error('Cambió el avance durante la recuperación.');
-  if(path.resolve(wd)!==path.resolve(checkpoint.source))atomic(wd,name,raw);
-  // The skill resumes these files as the owner of its working directory.
-  const owner=fs.statSync(wd);fs.chownSync(path.join(wd,name),owner.uid,owner.gid);
- }
+ for(const [name,digest] of Object.entries(checkpoint.files))restoreArtifact(checkpoint.source,wd,name,digest);
  atomic(wd,'recovery-receipt.json',{sourceJobId:checkpoint.sourceJobId,documentIdentity:checkpoint.documentIdentity,hashes:checkpoint.files});
+ fs.chmodSync(path.join(wd,'recovery-receipt.json'),0o444);
  return progressRows(wd);
 }
 function parse(text){

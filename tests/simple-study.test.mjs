@@ -95,3 +95,16 @@ test('timeout accepts an already saved valid Finance delivery without inventory'
  try{const job={study:base};assert.equal(await recover(job,wd,{code:124}),null);fs.writeFileSync(path.join(wd,'resultado_finanzas.json'),JSON.stringify(fixture));assert.equal(typeof await recover(job,wd,{code:124}),'string');assert.equal(await recover(job,wd,{code:0}),null);fs.writeFileSync(path.join(wd,'resultado_finanzas.json'),'broken');assert.equal(await recover(job,wd,{code:124}),null);}
  finally{fs.rmSync(wd,{recursive:true,force:true});}
 });
+
+
+test('research files resume without mandatory inventory, including nested and binary data',()=>{
+ const wd=fs.mkdtempSync(path.join(os.tmpdir(),'caf-research-data-'));const id='55555555-5555-4555-8555-555555555555';
+ try{const prior=path.join(wd,id);fs.mkdirSync(prior);fs.mkdirSync(path.join(prior,'evidencias_busqueda'));fs.writeFileSync(path.join(prior,'investigacion_web_checkpoint.json'),'[{"source":"synthetic saved research"}]');fs.writeFileSync(path.join(prior,'evidencias_busqueda','quote.bin'),Buffer.from([0,128,255,42]));const current={id:'66666666-6666-4666-8666-666666666666',owner:'study_worker',study:base};const old={...current,id,status:'failed',created_at:'2026-11-10T08:00:00Z'};const cp=findProgress(current,[old],wd);assert(cp);const target=path.join(wd,current.id);fs.mkdirSync(target);assert.deepEqual(restoreProgress(current,target,cp),[]);assert.equal(fs.readFileSync(path.join(target,'investigacion_web_checkpoint.json'),'utf8'),'[{"source":"synthetic saved research"}]');assert.deepEqual(fs.readFileSync(path.join(target,'evidencias_busqueda','quote.bin')),Buffer.from([0,128,255,42]));assert.equal(fs.statSync(path.join(target,'recovery-receipt.json')).mode&0o444,0o444);}
+ finally{fs.rmSync(wd,{recursive:true,force:true});}
+});
+
+test('fresh capabilities and inputs are preserved and external symlinks are never restored',()=>{
+ const wd=fs.mkdtempSync(path.join(os.tmpdir(),'caf-research-boundary-'));const id='77777777-7777-4777-8777-777777777777';
+ try{const prior=path.join(wd,id);fs.mkdirSync(prior);fs.writeFileSync(path.join(prior,'research-note.md'),'Saved source observation');for(const name of ['browser-access.json','finance-access.json','manifest.json','last.txt'])fs.writeFileSync(path.join(prior,name),'old internal fixture');fs.mkdirSync(path.join(prior,'tools'));fs.writeFileSync(path.join(prior,'tools','browse.mjs'),'old tool');fs.symlinkSync('/etc/passwd',path.join(prior,'external.json'));const current={id:'88888888-8888-4888-8888-888888888888',owner:'study_worker',study:base};const cp=findProgress(current,[{...current,id,status:'failed'}],wd);assert.deepEqual(Object.keys(cp.files),['research-note.md']);const target=path.join(wd,current.id);fs.mkdirSync(target);fs.writeFileSync(path.join(target,'browser-access.json'),'new private capability');restoreProgress(current,target,cp);assert.equal(fs.readFileSync(path.join(target,'browser-access.json'),'utf8'),'new private capability');assert.equal(fs.existsSync(path.join(target,'external.json')),false);assert.equal(fs.existsSync(path.join(target,'tools')),false);}
+ finally{fs.rmSync(wd,{recursive:true,force:true});}
+});
