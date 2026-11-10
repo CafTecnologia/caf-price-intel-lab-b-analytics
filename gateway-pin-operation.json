@@ -1,0 +1,19 @@
+{
+  "operation": "complete_existing_gateway_binding_migration",
+  "helper": "/opt/caf-dev/repos/odoo/scripts/caf_health/repair_gateway_bindings50.py",
+  "helper_sha256": "0a4c51ad1bee357907c9c11f42c7d6003c2b4386d29007fb260b58405aec977c",
+  "target": "/etc/caf-dev-test-api/config.json",
+  "config_before_sha256": "762a688c0a51f05c78e21d407a2d487a42c3e75957189429d67b876d3705f2a7",
+  "remove_redundant_strict_pins": [
+    "/opt/caf-dev/repos/odoo/scripts/caf_health/contracts.json",
+    "/opt/caf-dev/repos/odoo/scripts/caf_health/project_notice_health.py"
+  ],
+  "preserve": [
+    "own gateway contract fragment pin",
+    "all executable pins",
+    "all policy and runtime fields",
+    "private channel and closed public gateway"
+  ],
+  "reason": "A shared registry update for the financial worker must not fail the unrelated closed test gateway. Existing helper explicitly implements this migration.",
+  "proof": "/opt/caf-dev/worktrees/financial-simple-cloud-20261110/gateway-dependency-proof.json"
+}

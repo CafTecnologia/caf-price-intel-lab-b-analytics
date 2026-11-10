@@ -44,3 +44,5 @@ delta. La lista revisable y el patch están en candidate-manifest.json y change.
 Ampliación comprobada: conserva captura_documental.json e investigacion_checkpoint.json, presentes en el proyecto SENA Distrito Capital CSF. Los 13 casos vuelven a pasar. El supervisor vigente previo a publicación devuelve cero fallos.
 
 Corrección de recuperación: una entrega final válida se conserva y valida sin exigir inventory.json, incluso si el proceso agotó su tiempo. Dos regresiones nuevas; 11 casos Node y 4 Python pasan. Mantiene el rechazo del JSON inválido.
+
+Causa confirmada del rechazo de publicación: host.outcome.dev_test_api_gateway conservaba un pin estricto del registro global completo, además del pin de su propio contrato. Se aplica el helper canónico ya existente repair_gateway_bindings50.migrate para retirar dos referencias comunes no ejecutables. Permanecen los pins ejecutables, el contrato propio y el cierre de la pasarela. Seis comprobaciones sintéticas prueban el rechazo anterior, aceptación de cambios ajenos y rechazo de alteración propia/exposición. No se modifica el código del supervisor ni se excluye su check.
