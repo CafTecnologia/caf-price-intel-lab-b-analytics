@@ -74,6 +74,7 @@ export function publicCodexEvents(chunk,state,emit) {
     const line=state.buffer.slice(0,at);state.buffer=state.buffer.slice(at+1);
     let event;try{event=JSON.parse(line);}catch{continue;}
     const item=event.item||{};
+    if(/^(?:item\.|turn\.)/.test(event.type||''))state.last_event={at:new Date().toISOString(),type:String(event.type).slice(0,80),item_type:typeof item.type==='string'?item.type.slice(0,80):null,exit_code:typeof item.exit_code==='number'?item.exit_code:null};
     if(event.type!=='item.started')continue;
     if(item.type==='web_search')emit('tool','Consulta fuentes en la web.');
     if(item.type==='command_execution')emit('tool',String(item.command||'').includes('browse.mjs')?'Abre una fuente en el navegador.':'Lee documentos o ejecuta una comprobacion.');

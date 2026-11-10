@@ -108,3 +108,24 @@ test('fresh capabilities and inputs are preserved and external symlinks are neve
  try{const prior=path.join(wd,id);fs.mkdirSync(prior);fs.writeFileSync(path.join(prior,'research-note.md'),'Saved source observation');for(const name of ['browser-access.json','finance-access.json','manifest.json','last.txt'])fs.writeFileSync(path.join(prior,name),'old internal fixture');fs.mkdirSync(path.join(prior,'tools'));fs.writeFileSync(path.join(prior,'tools','browse.mjs'),'old tool');fs.symlinkSync('/etc/passwd',path.join(prior,'external.json'));const current={id:'88888888-8888-4888-8888-888888888888',owner:'study_worker',study:base};const cp=findProgress(current,[{...current,id,status:'failed'}],wd);assert.deepEqual(Object.keys(cp.files),['research-note.md']);const target=path.join(wd,current.id);fs.mkdirSync(target);fs.writeFileSync(path.join(target,'browser-access.json'),'new private capability');restoreProgress(current,target,cp);assert.equal(fs.readFileSync(path.join(target,'browser-access.json'),'utf8'),'new private capability');assert.equal(fs.existsSync(path.join(target,'external.json')),false);assert.equal(fs.existsSync(path.join(target,'tools')),false);}
  finally{fs.rmSync(wd,{recursive:true,force:true});}
 });
+
+test('study CLI offers a tool set compatible with ephemeral execution and preserves model selection',async()=>{
+ let captured;
+ const invoke=fn(server,'async function callCodex(','\nasync function callAntigravity(','callCodex',{
+  fs:{existsSync:()=>false},path,centralCodex:()=>({enabled:true,args:[],env:{}}),runProcess:async(file,args)=>{captured=args;return {code:0,out:'synthetic complete',e:''};},financeMcpArgs:()=>[],studyToolOutputArgs:()=>[],workerEnv:()=>({}),publicCodexEvents:()=>{},codexToolEvidence:()=>[]
+ });
+ const job={id:'synthetic',prompt:'Synthetic fixture',study:base,requested_model:'gpt-6.1-sol',reasoning_effort:'high'};
+ assert.equal(await invoke(job,{model:'another-model'},'/synthetic'),'synthetic complete');
+ assert(captured.includes('--ephemeral'));assert(captured.includes('features.multi_agent=false'));assert.equal(captured[captured.indexOf('-m')+1],'gpt-6.1-sol');assert(captured.includes('model_reasoning_effort=high'));
+ await invoke({id:'synthetic',prompt:'Synthetic general task'},{model:'gpt-6.1-sol'},'/synthetic');assert(!captured.includes('features.multi_agent=false'));
+});
+
+test('failure retains the execution boundary without persisting command text, documents or stderr',async()=>{
+ const parse=fn(runs,'export function publicCodexEvents(','\nexport function sanitizeFinancialStudyReply(','publicCodexEvents');
+ const invoke=fn(server,'async function callCodex(','\nasync function callAntigravity(','callCodex',{
+  fs:{existsSync:()=>false},path,centralCodex:()=>({enabled:true,args:[],env:{}}),runProcess:async(file,args,options)=>{options.onOutput(JSON.stringify({type:'item.completed',item:{type:'command_execution',exit_code:0,command:'PRIVATE_COMMAND',aggregated_output:'PRIVATE_DOCUMENT'}})+'\n');return {code:124,signal:null,out:'PRIVATE_DOCUMENT',e:'collab spawn failed: no thread with id: synthetic PRIVATE_STDERR'};},financeMcpArgs:()=>[],studyToolOutputArgs:()=>[],workerEnv:()=>({}),publicCodexEvents:parse,recoverTimedOutStudy:async()=>null,getJob:()=>null,codexToolEvidence:()=>[]
+ });
+ await assert.rejects(invoke({id:'synthetic',prompt:'Synthetic fixture',study:base},{model:'gpt-6.1-sol'},'/synthetic'),error=>{
+  assert.equal(error.message,'Codex exited 124');const d=error.execution_diagnostic;assert.equal(d.exit_code,124);assert.equal(d.observed_missing_thread,true);assert.equal(d.last_event.type,'item.completed');assert.equal(d.last_event.item_type,'command_execution');assert.equal(d.last_event.exit_code,0);assert(!JSON.stringify(d).includes('PRIVATE_'));return true;
+ });
+});
