@@ -1,0 +1,10 @@
+{
+  "study-runs.mjs": {
+    "source": "/opt/caf-dev/storage/ai-routing-central-r2-20261104/prod-worker-20261105/scope-source/study-runs.mjs",
+    "before_sha256": "d8f7055e1fffa8103cd1df0886f826587ca22897795709b93681506a9ece797e"
+  },
+  "finance-dialogue-context.mjs": {
+    "source": "/opt/caf-dev/storage/finance-natural-chat-20261030/ai/finance-dialogue-context.mjs",
+    "before_sha256": "2d05fe58094747dd1e7dc5e68ef830a39b3f43b12fc3bb7daefadc8d33f621ff"
+  }
+}
