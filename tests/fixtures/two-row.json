@@ -1,0 +1,55 @@
+{
+  "version": 3,
+  "items": [
+    {
+      "item": "A",
+      "name": "Producto sintetico A",
+      "description": "Articulo de prueba A",
+      "unit": "unidad",
+      "quantity": 2,
+      "ceiling_unit_price": null,
+      "notes": "Datos sinteticos de un piloto tecnico.",
+      "deliverable_type": "product",
+      "price_sources": [
+        {
+          "name": "Fuente sintetica",
+          "unit_price": 1000,
+          "currency": "COP",
+          "url": "https://example.invalid/fixture/a",
+          "notes": "Referencia sintetica de prueba"
+        }
+      ],
+      "data_organization": {
+        "version": 1,
+        "original_capture": "legacy_fields_only",
+        "normalization": [],
+        "components": []
+      }
+    },
+    {
+      "item": "B",
+      "name": "Producto sintetico B",
+      "description": "Articulo de prueba B",
+      "unit": "unidad",
+      "quantity": 3,
+      "ceiling_unit_price": null,
+      "notes": "Datos sinteticos de un piloto tecnico.",
+      "deliverable_type": "product",
+      "price_sources": [
+        {
+          "name": "Fuente sintetica",
+          "unit_price": 2000,
+          "currency": "COP",
+          "url": "https://example.invalid/fixture/b",
+          "notes": "Referencia sintetica de prueba"
+        }
+      ],
+      "data_organization": {
+        "version": 1,
+        "original_capture": "legacy_fields_only",
+        "normalization": [],
+        "components": []
+      }
+    }
+  ]
+}

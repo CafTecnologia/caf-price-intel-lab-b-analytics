@@ -144,7 +144,15 @@ function checkedFile(wd,name,max) {
   if(!s.isFile()||s.isSymbolicLink()||s.size>max)throw new Error('Entregable invalido: '+name);
   return fs.readFileSync(file,'utf8');
 }
-const deliveryFiles=[['resultado_finanzas.json',3000000],['inventory.json',2000000],['soporte.md',2000000]];
+const deliveryFiles=[['resultado_finanzas.json',3000000],['inventory.json',2000000],['soporte.md',2000000],['soporte_finanzas.md',2000000]];
+export function readStudySupport(wd) {
+ for(const name of ['soporte.md','soporte_finanzas.md']) {
+  if(!fs.existsSync(path.join(wd,name)))continue;
+  const support=checkedFile(wd,name,2000000);
+  if(support.trim())return support;
+ }
+ return '';
+}
 const MONEY_TOLERANCE=0.02;
 const finiteNumber=value=>typeof value==='number'&&Number.isFinite(value);
 const moneyMatches=(left,right)=>finiteNumber(left)&&finiteNumber(right)&&Math.abs(left-right)<=MONEY_TOLERANCE+Number.EPSILON;
@@ -257,8 +265,7 @@ export async function validateStudyOutput(job,wd,{python}={}) {
  if(job.study?.financialScope){
    const receipt=job.finance_receipt;
    if(receipt&&!validFinanceReceipt(receipt,job.study.financialScope))throw new Error('La investigacion termino sin confirmar cambios en Finanzas.');
-   const supportFile=path.join(wd,'soporte.md');
-   const support=fs.existsSync(supportFile)?checkedFile(wd,'soporte.md',2000000):financialReceiptSupport(job);
+   const support=readStudySupport(wd)||financialReceiptSupport(job);
    return {json:null,support,financialReceipt:receipt||null,financialReadOnly:!receipt,validation:{ok:true,format_ready:!!receipt,scope:receipt?'Finanzas confirmo las operaciones; precios y decision siguen bajo revision humana.':'Respuesta informativa; no hay cambios guardados en el calculo.'},manifest:job.manifest};
  }
  let json;
@@ -277,8 +284,7 @@ export async function validateStudyOutput(job,wd,{python}={}) {
  if(job.study?._catalogAccess&&json.version!==3)throw Error('Las tres vias requieren contrato version 3.');
  const searchCheck=job.study?._catalogAccess?validateSearchDelivery(json,wd):{};
  const profile=await validateStudyProfile(json,inventory,{python});
- const supportFile=path.join(wd,'soporte.md');
- const support=fs.existsSync(supportFile)?checkedFile(wd,'soporte.md',2000000):'';
+ const support=readStudySupport(wd);
  return {json,support,validation:{...profile,...businessTypes,...searchCheck,ok:true,format_ready:true,document_coverage:'not_required'},manifest:job.manifest};
 }
 export async function dispatchStudy(job,{save,emit,fetchImpl=fetch,wait=ms=>new Promise(resolve=>setTimeout(resolve,ms))}) {

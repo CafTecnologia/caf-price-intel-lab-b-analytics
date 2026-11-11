@@ -14,7 +14,7 @@ export function validateDialogueContext(body){
     scope.externalRunId!==`odoo:${scope.odooDb}:project:${body.projectId}:task:${body.taskId}:revision:${body.dossierRevision}`||
     context.project?.id!==body.projectId||typeof context.project?.name!=='string'||context.project.name.length>300)throw new Error('Vinculo del contexto financiero invalido');
  const output=context.output;
- if(!output||output.validation?.ok!==true||output.json?.version!==2||!Array.isArray(output.json.items)||!output.json.items.length||
+ if(!output||output.validation?.ok!==true||![2,3].includes(output.json?.version)||!Array.isArray(output.json.items)||!output.json.items.length||
     JSON.stringify(output.json).length>3000000||typeof output.support!=='string'||output.support.length>2000000)throw new Error('Estudio previo no validado');
  return {scope,context,output};
 }
