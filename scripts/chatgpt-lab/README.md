@@ -1,0 +1,4 @@
+# ChatGPT finance production-host lab
+Independent snapshot and process. Public route /finanzas-chatgpt; the existing /finanzas and APIs are unchanged. Runtime compiled in DEV with standalone output. Environment file contains public settings only; secrets are generated at destination. OAuth callback is the stable URI from official OpenAI auth documentation for issuer-identifying authorization servers. No production Odoo or finance data mutation is needed. Container dependencies and durable outcome checks must be installed and the production registry gate must pass before activation.
+
+Production Docker snap rejects even /bin/true with no-new-privileges (exit255); removing only that flag yields exit0. This lab retains non-root UID1000, all capabilities dropped, default AppArmor/seccomp, read-only rootfs/code, private writable data, loopback port and CPU/memory limits. Node is pinned to the already-installed image ID.

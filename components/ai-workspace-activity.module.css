@@ -1,0 +1,8 @@
+.notice { position:fixed; z-index:185; right:14px; bottom:86px; display:flex; align-items:center; gap:12px; max-width:min(620px, calc(100vw - 28px)); box-sizing:border-box; padding:12px 14px; border:1px solid #9fcbb4; border-radius:12px; background:#f0faf4; color:#235a45; box-shadow:0 6px 24px #203d231a; font-size:13px; }
+.notice div { display:grid; gap:4px; min-width:0; }
+.notice span { font-size:12px; line-height:1.4; }
+.notice button { flex-shrink:0; border:1px solid #b1cebc; border-radius:6px; background:#fffdf9; color:#235a45; padding:7px; cursor:pointer; }
+.notice button:focus-visible { outline:2px solid #267057; outline-offset:2px; }
+.changedRow > td { background-color:#edf8f0 !important; }
+.changedRow > td:first-child { box-shadow:inset 3px 0 #398260; }
+@media (max-width:620px) { .notice { left:8px; right:8px; bottom:90px; max-width:none; gap:6px; padding:9px; } .notice button { padding:8px 5px; } }
