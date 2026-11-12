@@ -186,6 +186,10 @@ export type OfferPresentation = {
     totalOfferWithoutVat: number;
     totalVat: number;
     totalOfferWithVat: number;
+    /** Same offered items and quantities; never the whole-contract budget. */
+    priceReferenceTotal: number | null;
+    totalOfferBeforeRounding: number | null;
+    priceDiscountPct: number | null;
     estimatedUtility: number | null;
     isComplete: boolean;
     reteFuente: number;
@@ -1041,6 +1045,10 @@ export function buildOfferPresentation(
   const totalOfferWithoutVat = sum(activeRows.map((row) => row.totalWithoutVat));
   const totalVat = sum(activeRows.map((row) => row.totalVatValue));
   const totalOfferWithVat = sum(activeRows.map((row) => row.totalWithVat));
+  const totalOfferBeforeRounding = activeSimulationRows.length > 0 && activeSimulationRows.every(row => row.offerTotal !== null)
+    ? sum(activeSimulationRows.map(row => row.offerTotal)) : null;
+  const priceReferenceTotal = activeSimulationRows.length > 0 && activeSimulationRows.every(row => row.offerTotal !== null && row.referenceTotal !== null)
+    ? sum(activeSimulationRows.map(row => row.referenceTotal)) : null;
   const baseValue = (base: WithholdingBase | undefined) => {
     if (base === "vat") return totalVat;
     if (base === "total") return totalOfferWithVat;
@@ -1077,6 +1085,10 @@ export function buildOfferPresentation(
       totalOfferWithoutVat,
       totalVat,
       totalOfferWithVat,
+      priceReferenceTotal,
+      totalOfferBeforeRounding,
+      priceDiscountPct: priceReferenceTotal !== null && priceReferenceTotal > 0 && totalOfferBeforeRounding !== null
+        ? 100 - totalOfferBeforeRounding / priceReferenceTotal * 100 : null,
       estimatedUtility: isComplete ? totalOfferWithVat - totalProjectCost : null,
       isComplete,
       reteFuente,

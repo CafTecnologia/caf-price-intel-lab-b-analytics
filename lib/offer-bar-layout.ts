@@ -22,6 +22,7 @@ function share(value: number, base: number): number {
 
 export function offerBarLayout(input: {
   offer: number | null;
+  offerBeforeRounding?: number | null;
   ceiling: number | null;
   cost: number | null;
   netUtility: number | null;
@@ -33,13 +34,14 @@ export function offerBarLayout(input: {
   const deductions = positive(input.deductions);
   const utility = positive(input.netUtility);
   const loss = Math.max(0, -(input.netUtility ?? 0));
-  const discount = ceiling > offer ? ceiling - offer : 0;
+  const comparisonOffer = positive(input.offerBeforeRounding ?? input.offer);
+  const discount = ceiling > comparisonOffer ? ceiling - comparisonOffer : 0;
   const excess = input.ceiling !== null && offer > ceiling ? offer - ceiling : 0;
-  const offerWidthPct = offer > 0 && ceiling > offer ? share(offer, ceiling) : 100;
+  const offerWidthPct = offer > 0 && discount > 0 ? share(offer, offer + discount) : 100;
 
   return {
     offerWidthPct,
-    discountWidthPct: ceiling > offer ? 100 - offerWidthPct : 0,
+    discountWidthPct: discount > 0 ? 100 - offerWidthPct : 0,
     ceilingMarkerPct: excess > 0 ? share(ceiling, offer) : null,
     excessWidthPct: excess > 0 ? share(excess, offer) : 0,
     costPct: share(cost, offer),

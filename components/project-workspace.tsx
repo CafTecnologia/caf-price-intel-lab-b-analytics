@@ -2550,7 +2550,7 @@ export function ProjectWorkspace(props: { project: FinancialOfferProject }) {
                 return <div key={group.key} className={`lot-financial-entry ${active ? "" : "is-excluded"}`}>
                   <label><input type="checkbox" checked={active} disabled={!group.id} onChange={event => { const checked = event.target.checked; setExcludedProcurementLotIds(current => checked ? current.filter(id => id !== group.id) : [...current, group.id!]); setSaveStatus("idle"); }} /> Incluir {group.label} en la oferta</label>
                   <details><summary>Resumen de {group.label} · {group.indexes.length} ítems{active ? "" : " · excluido"}</summary>
-                    <OfferCompositionBar offer={lotOffer.summary.totalOfferWithVat} ceiling={lotSimulation.summary.referenceKnownTotal} cost={lotSimulation.summary.knownCostTotal} netUtility={lotOffer.summary.estimatedNetUtility} deductions={lotOffer.summary.totalDeductions} scope={group.label} preliminary={!lotOffer.summary.isComplete} compact />
+                    <OfferCompositionBar offer={lotOffer.summary.totalOfferWithVat} ceiling={lotOffer.summary.priceReferenceTotal ?? lotSimulation.summary.referenceKnownTotal} referenceBasis={lotOffer.summary.priceReferenceTotal !== null ? "items" : "budget"} offerBeforeRounding={lotOffer.summary.totalOfferBeforeRounding} cost={lotSimulation.summary.knownCostTotal} netUtility={lotOffer.summary.estimatedNetUtility} deductions={lotOffer.summary.totalDeductions} scope={group.label} preliminary={!lotOffer.summary.isComplete} compact />
                   </details>
                 </div>;
               })}
@@ -2886,9 +2886,10 @@ export function ProjectWorkspace(props: { project: FinancialOfferProject }) {
   const partialReferenceComplete = partialScope.evaluableCount > 0 &&
     simulation.rows.filter((row) => row.includedInOffer !== false && row.isFinanciallyEvaluable).every((row) => row.referenceTotal !== null);
   const graphicSummary = totalComplete ? offer.summary : partialOffer?.summary;
-  const graphicCeiling = totalComplete
+  const graphicCeiling = graphicSummary?.priceReferenceTotal ?? (totalComplete
     ? simulation.summary.referenceIsComplete ? simulation.summary.referenceKnownTotal : null
-    : partialReferenceComplete ? partialScope.totalReference : null;
+    : partialReferenceComplete ? partialScope.totalReference : null);
+  const graphicReferenceBasis = graphicSummary?.priceReferenceTotal != null ? "items" : "budget";
   const totalCeiling = simulation.summary.referenceIsComplete ? simulation.summary.referenceKnownTotal : null;
   const offerCeiling = globalOfferCeilingComparison({
     ceiling: totalCeiling,
@@ -4298,6 +4299,8 @@ export function ProjectWorkspace(props: { project: FinancialOfferProject }) {
                 <OfferCompositionBar
                   offer={graphicSummary?.totalOfferWithVat ?? null}
                   ceiling={costOverview ? (excludedProcurementLotIds.length ? simulation.summary.referenceKnownTotal : manualReferenceTotal) : graphicCeiling}
+                  referenceBasis={graphicReferenceBasis}
+                  offerBeforeRounding={graphicSummary?.totalOfferBeforeRounding}
                   preliminary={!totalComplete}
                   costOverview={costOverview}
                   cost={graphicSummary?.totalProjectCost ?? null}
@@ -4311,7 +4314,7 @@ export function ProjectWorkspace(props: { project: FinancialOfferProject }) {
               {mobileLayout ? <div className="mobile-summary-metrics">
                 <OfferReferenceSummary offer={graphicSummary?.totalOfferWithVat ?? null} cost={graphicSummary?.totalProjectCost ?? null}
                   deductions={graphicSummary?.totalDeductions ?? null} netUtility={graphicSummary?.estimatedNetUtility ?? null}
-                  ceiling={graphicCeiling} scope={graphicScope} preliminary={!totalComplete}
+                  ceiling={graphicCeiling} referenceBasis={graphicReferenceBasis} offerBeforeRounding={graphicSummary?.totalOfferBeforeRounding} scope={graphicScope} preliminary={!totalComplete}
                   utilityLabel={utilityIsScenario ? "Utilidad de escenario" : "Utilidad neta"} />
               </div> : null}
               {summaryExpanded ? (
@@ -4363,8 +4366,10 @@ export function ProjectWorkspace(props: { project: FinancialOfferProject }) {
                       {costOverview ? (<OfferCompositionBar
                         offer={graphicSummary?.totalOfferWithVat ?? null}
                         ceiling={costOverview ? (excludedProcurementLotIds.length ? simulation.summary.referenceKnownTotal : manualReferenceTotal) : graphicCeiling}
-                  preliminary={!totalComplete}
-                  costOverview={costOverview}
+                        referenceBasis={graphicReferenceBasis}
+                        offerBeforeRounding={graphicSummary?.totalOfferBeforeRounding}
+                        preliminary={!totalComplete}
+                        costOverview={costOverview}
                         cost={graphicSummary?.totalProjectCost ?? null}
                         netUtility={graphicSummary?.estimatedNetUtility ?? null}
                         deductions={graphicSummary?.totalDeductions ?? null}
@@ -4374,7 +4379,7 @@ export function ProjectWorkspace(props: { project: FinancialOfferProject }) {
                       />) : (
                         <OfferReferenceSummary offer={graphicSummary?.totalOfferWithVat ?? null} cost={graphicSummary?.totalProjectCost ?? null}
                           deductions={graphicSummary?.totalDeductions ?? null} netUtility={graphicSummary?.estimatedNetUtility ?? null}
-                          ceiling={graphicCeiling} scope={graphicScope} preliminary={!totalComplete}
+                          ceiling={graphicCeiling} referenceBasis={graphicReferenceBasis} offerBeforeRounding={graphicSummary?.totalOfferBeforeRounding} scope={graphicScope} preliminary={!totalComplete}
                           utilityLabel={utilityIsScenario ? "Utilidad de escenario" : "Utilidad neta"} />
                       )}
                       <p className="summary-reference-scope">{summaryCoverage} · COP</p>
@@ -4996,7 +5001,7 @@ export function ProjectWorkspace(props: { project: FinancialOfferProject }) {
               <div className="offer-ceiling-details">
                 {offerCeiling.status === "exceeded" ? <span className="offer-ceiling-note is-danger" role="alert">La oferta con IVA supera el techo total en {formatCop(-offerCeiling.difference!)}{offerCeiling.partial ? " · faltan ítems por ofertar" : ""}.</span>
                   : offerCeiling.status === "at_limit" ? <span className="offer-ceiling-note">Oferta con IVA al límite{offerCeiling.partial ? " · faltan ítems por ofertar" : ""}.</span>
-                  : offerCeiling.status === "within" ? <span className="offer-ceiling-note">{offerCeiling.partial ? "Diferencia provisional respecto al techo total" : "Descuento respecto al techo total"}: {formatCop(offerCeiling.difference)}{offerCeiling.partial ? " · faltan ítems por ofertar" : ""}.</span>
+                  : offerCeiling.status === "within" ? <span className="offer-ceiling-note">{offerCeiling.partial ? "Saldo provisional frente al techo total" : "Saldo frente al techo total"}: {formatCop(offerCeiling.difference)}{offerCeiling.partial ? " · faltan ítems por ofertar" : ""}.</span>
                   : offerCeiling.status === "no_offer" ? <span className="offer-ceiling-note">Registra una oferta para comparar.</span> : null}
                 {offer.summary.rowsAboveCeiling > 0 ? <span className="offer-ceiling-note is-danger" role="alert">{formatNumber(offer.summary.rowsAboveCeiling)} ítems superan su techo unitario.</span> : null}
               </div>

@@ -6,6 +6,8 @@ import { offerBarLayout } from "../lib/offer-bar-layout";
 
 type Props = {
   offer: number | null;
+  offerBeforeRounding?: number | null;
+  referenceBasis?: "items" | "budget";
   ceiling: number | null;
   cost: number | null;
   netUtility: number | null;
@@ -59,7 +61,7 @@ function placeCompactMarkers(items: Omit<CompactMarker, "x">[], width: number): 
   return placed;
 }
 
-export function OfferCompositionBar({ offer, ceiling, cost, netUtility, deductions, scope, compact, preliminary = false, utilityLabel = "Utilidad neta", costOverview }: Props) {
+export function OfferCompositionBar({ offer, offerBeforeRounding, referenceBasis = "items", ceiling, cost, netUtility, deductions, scope, compact, preliminary = false, utilityLabel = "Utilidad neta", costOverview }: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [trackWidth, setTrackWidth] = useState(0);
   const hasOffer = offer !== null && offer > 0;
@@ -71,7 +73,9 @@ export function OfferCompositionBar({ offer, ceiling, cost, netUtility, deductio
     setTrackWidth(track.clientWidth);
     return () => observer.disconnect();
   }, [hasOffer]);
-  const layout = offerBarLayout({ offer, ceiling, cost, netUtility, deductions });
+  const layout = offerBarLayout({ offer, offerBeforeRounding: referenceBasis === "items" ? offerBeforeRounding : undefined, ceiling, cost, netUtility, deductions });
+  const differenceLabel = referenceBasis === "budget" ? "Saldo presupuesto" : "Descuento";
+  const rounding = referenceBasis === "items" && offerBeforeRounding != null && offer !== null ? offerBeforeRounding - offer : 0;
   if (costOverview && ceiling !== null && ceiling >= 0) {
     const knownCost = costOverview.knownCost;
     const scale = Math.max(ceiling, knownCost ?? 0, 1);
@@ -125,7 +129,7 @@ export function OfferCompositionBar({ offer, ceiling, cost, netUtility, deductio
     { key: "deductions", label: "Retenciones", value: deductions ?? 0, pct: layout.deductionsPct },
   ].filter((segment) => segment.value > 0.005);
   const excessDetail = ceiling === 0 ? "sobre techo cero" : formatPercent((layout.excess / ceiling!) * 100) + " del techo";
-  const description = `${scope}. Valor a ofertar ${formatCop(offer)}. ${segments.map((segment) => `${segment.label} ${formatCop(segment.value)}, ${formatPercent(segment.pct)} de la oferta`).join(". ")}. ${ceiling !== null ? `Precio techo ${formatCop(ceiling)}` : "Precio techo pendiente"}.${layout.discount ? ` Descuento ${formatCop(layout.discount)}, ${formatPercent((layout.discount / ceiling!) * 100)} del techo.` : ""}${layout.excess ? ` Exceso ${formatCop(layout.excess)}, ${excessDetail}.` : ""}${layout.isLoss ? ` Pérdida ${formatCop(layout.loss)}.` : ""}`;
+  const description = `${scope}. Valor a ofertar ${formatCop(offer)}. ${segments.map((segment) => `${segment.label} ${formatCop(segment.value)}, ${formatPercent(segment.pct)} de la oferta`).join(". ")}. ${ceiling !== null ? `Precio techo ${formatCop(ceiling)}` : "Precio techo pendiente"}.${layout.discount ? ` ${differenceLabel} ${formatCop(layout.discount)}, ${formatPercent((layout.discount / ceiling!) * 100)} del techo.` : ""}${layout.excess ? ` Exceso ${formatCop(layout.excess)}, ${excessDetail}.` : ""}${layout.isLoss ? ` Pérdida ${formatCop(layout.loss)}.` : ""}`;
   const discountWidth = trackWidth * layout.discountWidthPct / 100;
   const segmentCallouts = !compact && !layout.isLoss && trackWidth > 0 ? segments.filter((segment) => {
     const width = trackWidth * layout.offerWidthPct / 100 * segment.pct / 100;
@@ -142,7 +146,7 @@ export function OfferCompositionBar({ offer, ceiling, cost, netUtility, deductio
       anchor: trackWidth * layout.offerWidthPct / 100 * (segment.key === "cost" ? layout.costPct / 2 : segment.key === "utility" ? layout.costPct + layout.utilityPct / 2 : layout.costPct + layout.utilityPct + layout.deductionsPct / 2) / 100,
       color: segment.key === "cost" ? "#a34f4d" : segment.key === "utility" ? "#3b8150" : "#a87720",
     })),
-    ...(showDiscountCallout ? [{ key: "discount", label: "Descuento", value: layout.discount, detail: `${formatPercent((layout.discount / ceiling!) * 100)} del techo`, anchor: trackWidth * (layout.offerWidthPct + layout.discountWidthPct / 2) / 100, color: "#777674" }] : []),
+    ...(showDiscountCallout ? [{ key: "discount", label: differenceLabel, value: layout.discount, detail: `${formatPercent((layout.discount / ceiling!) * 100)} del techo`, anchor: trackWidth * (layout.offerWidthPct + layout.discountWidthPct / 2) / 100, color: "#777674" }] : []),
   ], trackWidth);
   const compactMarkers = placeCompactMarkers([
     ...segments.filter((segment) => segment.key !== "deductions").map((segment) => ({
@@ -162,10 +166,10 @@ export function OfferCompositionBar({ offer, ceiling, cost, netUtility, deductio
       title: `Retenciones ${formatCop(segment.value)} · ${formatPercent(segment.pct)} de la oferta`,
     })),
     ...(layout.discount > 0 ? [{
-      key: "discount", label: "Dcto.", value: layout.discount, pct: layout.discount / ceiling! * 100,
+      key: "discount", label: referenceBasis === "budget" ? "Saldo" : "Dcto.", value: layout.discount, pct: layout.discount / ceiling! * 100,
       anchor: trackWidth * (layout.offerWidthPct + layout.discountWidthPct / 2) / 100,
       width: 145, row: 0,
-      title: `Descuento ${formatCop(layout.discount)} · ${formatPercent(layout.discount / ceiling! * 100)} del techo`,
+      title: `${differenceLabel} ${formatCop(layout.discount)} · ${formatPercent(layout.discount / ceiling! * 100)} del techo`,
     }] : []),
   ], Math.max(0, trackWidth - 36));
   const positionCompactMarkers = trackWidth >= 450 && !layout.excess && !layout.isLoss;
@@ -200,7 +204,7 @@ export function OfferCompositionBar({ offer, ceiling, cost, netUtility, deductio
         </div>
         {layout.discount > 0 ? (
           <div className={`offer-graphic-discount ${!compact && !showDiscountCallout ? "has-inside-label" : ""}`} style={{ width: `${layout.discountWidthPct}%` }}>
-            {!compact && !showDiscountCallout ? <span><small>Descuento</small><strong>{formatCop(layout.discount)}</strong><em>{formatPercent((layout.discount / ceiling!) * 100)} del techo</em></span> : null}
+            {!compact && !showDiscountCallout ? <span><small>{differenceLabel}</small><strong>{formatCop(layout.discount)}</strong><em>{formatPercent((layout.discount / ceiling!) * 100)} del techo</em></span> : null}
           </div>
         ) : null}
       </div>
@@ -221,20 +225,23 @@ export function OfferCompositionBar({ offer, ceiling, cost, netUtility, deductio
       ) : null}
       <div className="offer-graphic-ceiling">
         {ceiling !== null ? <span>Precio techo <strong>{formatCop(ceiling)}</strong></span> : <span>Precio techo pendiente</span>}
+        {Math.abs(rounding) > 0.005 ? <span> · Redondeo: {formatCop(-rounding)}</span> : null}
       </div>
     </div>
   );
 }
 
 export function OfferReferenceSummary(props: Omit<Props, "compact">) {
-  const layout = offerBarLayout(props);
+  const layout = offerBarLayout({ ...props, offerBeforeRounding: props.referenceBasis === "budget" ? undefined : props.offerBeforeRounding });
   const percentOfOffer = (value: number | null) => value !== null && props.offer !== null && props.offer > 0 ? value / props.offer * 100 : null;
-  const difference = props.ceiling !== null && props.offer !== null ? props.ceiling - props.offer : null;
+  const comparisonOffer = props.referenceBasis === "budget" ? props.offer : props.offerBeforeRounding ?? props.offer;
+  const difference = props.ceiling !== null && comparisonOffer !== null ? props.ceiling - comparisonOffer : null;
+  const rounding = props.referenceBasis !== "budget" && props.offerBeforeRounding != null && props.offer !== null ? props.offerBeforeRounding - props.offer : 0;
   const fields = [
     { key: "cost", label: "Costo", value: props.cost, pct: percentOfOffer(props.cost), base: "de la oferta" },
     { key: layout.isLoss ? "loss" : "utility", label: layout.isLoss ? "Pérdida" : props.utilityLabel === "Utilidad de escenario" ? "Utilidad de escenario" : "Utilidad", value: props.netUtility, pct: percentOfOffer(props.netUtility), base: "de la oferta" },
     { key: "deductions", label: "Retenciones", value: props.deductions, pct: percentOfOffer(props.deductions), base: "de la oferta" },
-    { key: difference !== null && difference < 0 ? "excess" : "discount", label: difference !== null && difference < 0 ? "Exceso" : "Descuento", value: difference === null ? null : Math.abs(difference), pct: difference !== null && props.ceiling !== null && props.ceiling > 0 ? Math.abs(difference) / props.ceiling * 100 : null, base: "del techo" },
+    { key: difference !== null && difference < 0 ? "excess" : "discount", label: difference !== null && difference < 0 ? "Exceso" : props.referenceBasis === "budget" ? "Saldo presupuesto" : "Descuento", value: difference === null ? null : Math.abs(difference), pct: difference !== null && props.ceiling !== null && props.ceiling > 0 ? Math.abs(difference) / props.ceiling * 100 : null, base: "del techo" },
   ];
   // #110: punto medio de cada tramo en la cinta, para la línea guía desde su texto.
   const guideAnchors = [
@@ -251,9 +258,9 @@ export function OfferReferenceSummary(props: Omit<Props, "compact">) {
     </div>
     <dl className="summary-reference-values summary-ordered-values" aria-label={`${props.scope || "Oferta"}. Valores en pesos colombianos (COP)`}>
       <div className="summary-reference-general">
-        <div><dt>Techo</dt><dd>{props.ceiling === null ? "Pendiente" : formatCop(props.ceiling)}</dd></div>
+        <div><dt title={props.referenceBasis === "budget" ? "Presupuesto global" : "Techos unitarios por las cantidades de esta oferta"}>{props.referenceBasis === "budget" ? "Presupuesto" : "Techo"}</dt><dd>{props.ceiling === null ? "Pendiente" : formatCop(props.ceiling)}</dd></div>
         <span aria-hidden="true" className="summary-reference-slash">/</span>
-        <div><dt>{props.preliminary ? "Oferta parcial" : "Oferta"}</dt><dd>{props.offer === null ? "Pendiente" : formatCop(props.offer)}</dd></div>
+        <div><dt>{props.preliminary ? "Oferta parcial" : "Oferta"}</dt><dd title={Math.abs(rounding) > 0.005 ? `Redondeo: ${formatCop(-rounding)}` : undefined}>{props.offer === null ? "Pendiente" : formatCop(props.offer)}</dd></div>
       </div>
       {fields.map((field) => <div key={field.key} className="summary-reference-metric"><dt className={`summary-color-key is-${field.key}`}><i aria-hidden="true" />{field.label}</dt><dd>{field.value === null ? "Pendiente" : formatCop(field.value)}<small title={`Porcentaje ${field.base}`}><span aria-hidden="true"> – </span>{field.pct === null ? "—" : formatPercent(field.pct)}</small></dd></div>)}
     </dl>
