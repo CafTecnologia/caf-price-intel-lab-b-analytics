@@ -358,9 +358,11 @@ function replayVersionAction(
 export async function getVersionActionReceipt(
   operationId: string, projectId?: string, scope?: VersionActionReceipt["scope"],
 ): Promise<VersionActionReceipt | null> {
-  const stored = (await readStore()).versionActionReceipts?.[operationId]?.receipt;
-  if (!stored || (projectId && stored.projectId !== projectId) || (scope && stored.scope !== scope)) return null;
-  return structuredClone(stored);
+  return storeReader.select(storePath(), (store) => {
+    const stored = store.versionActionReceipts?.[operationId]?.receipt;
+    if (!stored || (projectId && stored.projectId !== projectId) || (scope && stored.scope !== scope)) return null;
+    return structuredClone(stored);
+  });
 }
 
 function withVersionActionReceipt(
@@ -691,39 +693,46 @@ function nextUpdatedAt(previous: string): string {
 export async function getCalculationReceipt(
   id: string,
 ): Promise<CalculationOperationsReceipt | ManualCalculationChangeReceipt | null> {
-  const store = await readStore();
-  const operation = store.calculationOperationReceipts?.[id];
-  if (operation) return { ...structuredClone(operation.receipt),
-    createdItemKeys: structuredClone(operation.receipt.createdItemKeys ?? []) };
-  const manual = store.manualChangeReceipts?.find((entry) => entry.id === id);
-  return manual ? structuredClone(manual) : null;
+  return storeReader.select(storePath(), (store) => {
+    const operation = store.calculationOperationReceipts?.[id];
+    if (operation) return { ...structuredClone(operation.receipt),
+      createdItemKeys: structuredClone(operation.receipt.createdItemKeys ?? []) };
+    const manual = store.manualChangeReceipts?.find((entry) => entry.id === id);
+    return manual ? structuredClone(manual) : null;
+  });
 }
 
 export async function getCalculationOperationReceipt(
   operationId: string,
 ): Promise<CalculationOperationsReceipt | null> {
-  const stored = (await readStore()).calculationOperationReceipts?.[operationId];
-  return stored ? { ...structuredClone(stored.receipt), createdItemKeys: structuredClone(stored.receipt.createdItemKeys ?? []) } : null;
+  return storeReader.select(storePath(), (store) => {
+    const stored = store.calculationOperationReceipts?.[operationId];
+    return stored ? { ...structuredClone(stored.receipt), createdItemKeys: structuredClone(stored.receipt.createdItemKeys ?? []) } : null;
+  });
 }
 
 export async function listCalculationOperationReceiptsByJob(
   jobId: string,
 ): Promise<CalculationOperationsReceipt[]> {
-  const receipts = Object.values((await readStore()).calculationOperationReceipts ?? {})
-    .map((entry) => ({ ...entry.receipt, createdItemKeys: entry.receipt.createdItemKeys ?? [] }))
-    .filter((receipt) => receipt.jobId === jobId)
-    .sort((left, right) => left.updatedAt.localeCompare(right.updatedAt));
-  return structuredClone(receipts);
+  return storeReader.select(storePath(), (store) => {
+    const receipts = Object.values(store.calculationOperationReceipts ?? {})
+      .map((entry) => ({ ...entry.receipt, createdItemKeys: entry.receipt.createdItemKeys ?? [] }))
+      .filter((receipt) => receipt.jobId === jobId)
+      .sort((left, right) => left.updatedAt.localeCompare(right.updatedAt));
+    return structuredClone(receipts);
+  });
 }
 
 export async function getCalculationItemDocumentKeys(projectId: string): Promise<Record<string, string>> {
-  const receipts = Object.values((await readStore()).calculationOperationReceipts ?? {})
-    .map((entry) => entry.receipt)
-    .filter((receipt) => receipt.calculationId === projectId)
-    .sort((left, right) => left.updatedAt.localeCompare(right.updatedAt));
-  return Object.fromEntries(receipts.flatMap((receipt) =>
-    (receipt.createdItemKeys ?? []).map(({ itemId, key }) => [itemId, key]),
-  ));
+  return storeReader.select(storePath(), (store) => {
+    const receipts = Object.values(store.calculationOperationReceipts ?? {})
+      .map((entry) => entry.receipt)
+      .filter((receipt) => receipt.calculationId === projectId)
+      .sort((left, right) => left.updatedAt.localeCompare(right.updatedAt));
+    return Object.fromEntries(receipts.flatMap((receipt) =>
+      (receipt.createdItemKeys ?? []).map(({ itemId, key }) => [itemId, key]),
+    ));
+  });
 }
 
 export async function applyCalculationOperations(

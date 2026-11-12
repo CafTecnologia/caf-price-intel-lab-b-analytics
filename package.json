@@ -35,8 +35,7 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "^19.1.2",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.4",
-    "esbuild": "0.25.12"
+    "vitest": "^3.2.4"
   },
   "description": "Suite de análisis técnico y financiero — Simulador Financiero: ingesta JSON/API, simulación de costos y oferta económica."
 }

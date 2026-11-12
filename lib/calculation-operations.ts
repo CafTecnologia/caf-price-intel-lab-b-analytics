@@ -287,13 +287,11 @@ type PublicItemField = keyof typeof itemFieldMap;
 function normalizedFields(
   current: FinancialOfferItem,
   fields: z.output<typeof ItemPatchSchema>,
-  snapshot = false,
 ): Partial<FinancialOfferItem> {
   const normalizedInput = { ...publicItem(current), ...fields };
   if (normalizedInput.source_original === null) delete normalizedInput.source_original;
   const parsed = PublicItemSchema.parse(normalizedInput);
   const normalized = normalizePublicItem(parsed, current.id);
-  if (snapshot) normalized.costBasisStatus = parsed.cost_basis_status ?? null;
   return Object.fromEntries(Object.keys(fields).map((field) => {
     const internalField = itemFieldMap[field as PublicItemField];
     return [internalField, structuredClone(normalized[internalField])];
@@ -426,7 +424,7 @@ export function applyCalculationOperationBatch(
           }
         }
       }
-      const expected = normalizedFields(current, operation.expected, true);
+      const expected = normalizedFields(current, operation.expected);
       const patch = normalizedFields(current, operation.patch);
       for (const field of Object.keys(operation.patch) as PublicItemField[]) {
         const internalField = itemFieldMap[field];

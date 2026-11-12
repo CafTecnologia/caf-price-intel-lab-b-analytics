@@ -27,7 +27,7 @@ export async function GET(request: Request, props: { params: Promise<{ projectId
   const calculation = await getProject(projectId);
   if (!calculation) return NextResponse.json({ error: "Cálculo no encontrado." }, { status: 404 });
   const documentKeys = await getCalculationItemDocumentKeys(projectId);
-  return NextResponse.json({ calculation: { id: calculation.id, externalId: calculation.externalId, odooProjectId: calculation.odooProjectId, updatedAt: calculation.updatedAt, settings: { ...(calculation.settings.budgetLimits?.length ? { budgetLimits: calculation.settings.budgetLimits } : {}), manualReferenceTotal: calculation.settings.manualReferenceTotal }, items: calculation.items.map((item) => ({ ...item, documentKey: documentKeys[item.id], editableFields: calculationOperationItemValues(item) })), generalCosts: calculation.generalCosts }, calculationUrl: appPath(`/calculations/${projectId}`) });
+  return NextResponse.json({ calculation: { id: calculation.id, externalId: calculation.externalId, odooProjectId: calculation.odooProjectId, updatedAt: calculation.updatedAt, settings: { budgetLimits: calculation.settings.budgetLimits ?? [], manualReferenceTotal: calculation.settings.manualReferenceTotal, usdToCopRate: calculation.settings.usdToCopRate, usdImportPct: calculation.settings.usdImportPct }, items: calculation.items.map((item) => ({ ...item, documentKey: documentKeys[item.id], editableFields: calculationOperationItemValues(item) })), generalCosts: calculation.generalCosts }, calculationUrl: appPath(`/calculations/${projectId}`) });
 }
 export async function POST(request: Request, props: { params: Promise<{ projectId: string }> }) {
   if (!authorized(request)) return denied();
